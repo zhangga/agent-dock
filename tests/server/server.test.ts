@@ -640,6 +640,19 @@ describe("AgentDock server", () => {
     });
   });
 
+  test("does not render descriptions inside saved skills rows", async () => {
+    const root = await makeTempRoot();
+
+    await withServer([root], async (baseUrl) => {
+      const response = await fetch(baseUrl);
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).not.toContain("renderStackSkillDetail(");
+      expect(html).not.toContain("renderSourceLabel(");
+    });
+  });
+
   test("serves restore preview and restore controls", async () => {
     const root = await makeTempRoot();
 

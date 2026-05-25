@@ -813,7 +813,7 @@ export function renderConsoleHtml(): string {
             const currentSkill = installedById.get(skill.id);
             return [
               '<tr>',
-              '<td><div class="skill-name">' + escapeHtml(currentSkill ? currentSkill.name : skill.id) + '</div><div class="desc">' + renderStackSkillDetail(skill, currentSkill) + '</div></td>',
+              '<td><div class="skill-name">' + escapeHtml(currentSkill ? currentSkill.name : skill.id) + '</div></td>',
               '<td>' + renderStackStatus(isInstalled) + '</td>',
               '<td>' + renderRestoreSource(skill) + renderManualCommandForm(skill) + '</td>',
               '<td>' + renderStackLocation(currentSkill) + '</td>',
@@ -937,28 +937,6 @@ export function renderConsoleHtml(): string {
         }
 
         return '<span class="install-missing">This skill does not have a restore source yet.</span>';
-      }
-
-      function renderStackSkillDetail(skill, currentSkill) {
-        if (currentSkill && currentSkill.description) {
-          return renderDescription(currentSkill.description);
-        }
-
-        return '<span class="desc-preview">' + escapeHtml(renderSourceLabel(skill)) + '</span>';
-      }
-
-      function renderSourceLabel(skill) {
-        const source = skill.source || { type: "unknown" };
-
-        if (source.type === "skills.sh" && source.package && source.skill) {
-          return source.package + "@" + source.skill;
-        }
-
-        if (source.type === "command") {
-          return "Manual command";
-        }
-
-        return "No restore source";
       }
 
       function renderManualCommandForm(skill) {
