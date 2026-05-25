@@ -1,0 +1,277 @@
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { readAgentDockConfig, setConfiguredStackPath } from "../core/configStore.js";
+import {
+  resolveSkillInstallFromSkillsSh,
+  type SkillInstallResolver
+} from "../core/skillInstallResolver.js";
+import { scanInstalledSkills } from "../core/skillScanner.js";
+import {
+  buildRestorePlan,
+  parseInstallCommand,
+  restoreMissingSkills,
+  type RestoreCommandRunner
+} from "../core/skillRestoreExecutor.js";
+import {
+  addSkillToStack,
+  createStackFile,
+  readStack,
+  readStackFileState,
+  removeSkillFromStack,
+  updateSkillSourceInStack
+} from "../core/stackStore.js";
+import {
+  chooseStackFileWithSystemPicker,
+  type StackFilePicker
+} from "../system/stackFilePicker.js";
+import { renderConsoleHtml } from "../ui/page.js";
+
+export interface AgentDockServerOptions {
+  skillRoots?: string[];
+  stackPath?: string;
+  configPath?: string;
+  chooseStackFile?: StackFilePicker;
+  resolveSkillInstall?: SkillInstallResolver;
+  restoreRunner?: RestoreCommandRunner;
+}
+
+export function createAgentDockServer(options: AgentDockServerOptions = {}): Server {
+  return createServer(async (request, response) => {
+    try {
+      await handleRequest(request, response, options);
+    } catch (error) {
+      console.error(error);
+      sendJson(response, 500, { error: "Internal server error" });
+    }
+  });
+}
+
+async function handleRequest(
+  request: IncomingMessage,
+  response: ServerResponse,
+  options: AgentDockServerOptions
+): Promise<void> {
+  const url = new URL(request.url ?? "/", "http://127.0.0.1");
+
+  if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
+    sendHtml(response, renderConsoleHtml());
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/favicon.ico") {
+    response.writeHead(204, { "cache-control": "public, max-age=86400" });
+    response.end();
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/skills") {
+    const skills = await scanInstalledSkills({ roots: options.skillRoots });
+    sendJson(response, 200, { skills });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/stack") {
+    const stackPath = await resolveStackPath(options);
+    const stack = await readStack({ stackPath });
+    const stackFile = await readStackFileState({ stackPath });
+    sendJson(response, 200, { stack, stackFile });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/stack/create") {
+    const stackPath = await resolveStackPath(options);
+    const stack = await createStackFile({ stackPath });
+    const stackFile = await readStackFileState({ stackPath });
+    sendJson(response, 200, { stack, stackFile });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/stack/path") {
+    const body = await readJsonBody(request);
+    const stackPath = typeof body.path === "string" ? body.path.trim() : "";
+
+    if (!stackPath) {
+      sendJson(response, 400, { error: "Stack path is required" });
+      return;
+    }
+
+    const config = await setConfiguredStackPath(stackPath, { configPath: options.configPath });
+    const stack = await createStackFile({ stackPath: config.stackPath });
+    const stackFile = await readStackFileState({ stackPath: config.stackPath });
+    sendJson(response, 200, { stack, stackFile });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/stack/choose-file") {
+    const currentPath = await resolveStackPath(options);
+    const chooseStackFile = options.chooseStackFile ?? chooseStackFileWithSystemPicker;
+    const result = await chooseStackFile({ currentPath });
+
+    if (result.canceled) {
+      sendJson(response, 200, { canceled: true });
+      return;
+    }
+
+    if (result.unavailable || !result.path) {
+      sendJson(response, 501, {
+        error: result.message ?? "System file picker is not available."
+      });
+      return;
+    }
+
+    const config = await setConfiguredStackPath(result.path, { configPath: options.configPath });
+    const stack = await createStackFile({ stackPath: config.stackPath });
+    const stackFile = await readStackFileState({ stackPath: config.stackPath });
+    sendJson(response, 200, { stack, stackFile });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/stack/skills") {
+    const body = await readJsonBody(request);
+    const skills = await scanInstalledSkills({ roots: options.skillRoots });
+    const skill = skills.find((item) => item.id === body.id && item.installPath === body.installPath);
+
+    if (!skill) {
+      sendJson(response, 404, { error: "Skill not found" });
+      return;
+    }
+
+    const stackPath = await resolveStackPath(options);
+    const resolveSkillInstall = options.resolveSkillInstall ?? resolveSkillInstallFromSkillsSh;
+    const install = await resolveSkillInstall(skill);
+    const stack = await addSkillToStack(skill, { stackPath, install });
+    const stackFile = await readStackFileState({ stackPath });
+    sendJson(response, 200, { stack, stackFile });
+    return;
+  }
+
+  if (request.method === "DELETE" && url.pathname === "/api/stack/skills") {
+    const body = await readJsonBody(request);
+    const id = typeof body.id === "string" ? body.id.trim() : "";
+
+    if (!id) {
+      sendJson(response, 400, { error: "Skill id is required" });
+      return;
+    }
+
+    const stackPath = await resolveStackPath(options);
+    const stack = await removeSkillFromStack({ id }, { stackPath });
+    const stackFile = await readStackFileState({ stackPath });
+    sendJson(response, 200, { stack, stackFile });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/restore/skills/plan") {
+    const stackPath = await resolveStackPath(options);
+    const [stack, skills] = await Promise.all([
+      readStack({ stackPath }),
+      scanInstalledSkills({ roots: options.skillRoots })
+    ]);
+
+    sendJson(response, 200, { plan: buildRestorePlan(stack, skills) });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/restore/skills/apply") {
+    const body = await readJsonBody(request);
+    const ids = Array.isArray(body.ids) ? body.ids.filter((id): id is string => typeof id === "string") : undefined;
+    const stackPath = await resolveStackPath(options);
+    const [stack, skills] = await Promise.all([
+      readStack({ stackPath }),
+      scanInstalledSkills({ roots: options.skillRoots })
+    ]);
+    const results = await restoreMissingSkills(stack, skills, {
+      ids,
+      ...(options.restoreRunner ? { runner: options.restoreRunner } : {})
+    });
+
+    sendJson(response, 200, { results });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/stack/skills/source") {
+    const body = await readJsonBody(request);
+    const id = typeof body.id === "string" ? body.id.trim() : "";
+    const install = typeof body.install === "string" ? body.install.trim() : "";
+
+    if (!id || !install) {
+      sendJson(response, 400, { error: "Skill id and install command are required." });
+      return;
+    }
+
+    const parsedCommand = parseInstallCommand(install);
+    if (!parsedCommand) {
+      sendJson(response, 400, { error: "Only npx skills add ... commands are supported right now." });
+      return;
+    }
+
+    const stackPath = await resolveStackPath(options);
+    const stack = await updateSkillSourceInStack(
+      { id },
+      {
+        type: "command",
+        install: parsedCommand.display
+      },
+      { stackPath }
+    );
+
+    if (!stack) {
+      sendJson(response, 404, { error: "Skill not found in backup" });
+      return;
+    }
+
+    const stackFile = await readStackFileState({ stackPath });
+    sendJson(response, 200, { stack, stackFile });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/health") {
+    sendJson(response, 200, { ok: true });
+    return;
+  }
+
+  sendJson(response, 404, { error: "Not found" });
+}
+
+async function resolveStackPath(options: AgentDockServerOptions): Promise<string | undefined> {
+  if (options.stackPath) {
+    return options.stackPath;
+  }
+
+  const config = await readAgentDockConfig({ configPath: options.configPath });
+  return config.stackPath;
+}
+
+function sendHtml(response: ServerResponse, html: string): void {
+  response.writeHead(200, {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-store"
+  });
+  response.end(html);
+}
+
+function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
+  response.writeHead(statusCode, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store"
+  });
+  response.end(JSON.stringify(payload));
+}
+
+function readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    let body = "";
+
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => {
+      body += chunk;
+    });
+    request.on("end", () => {
+      try {
+        resolve(body ? (JSON.parse(body) as Record<string, unknown>) : {});
+      } catch (error) {
+        reject(error);
+      }
+    });
+    request.on("error", reject);
+  });
+}
