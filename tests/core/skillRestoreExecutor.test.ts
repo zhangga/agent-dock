@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   buildRestorePlan,
+  normalizeInstallInput,
   parseInstallCommand,
   restoreMissingSkills,
   type RestoreCommandRunner
@@ -91,6 +92,33 @@ describe("skillRestoreExecutor", () => {
       args: ["skills", "add", "owner/repo", "--skill", "skill-name"],
       display: "npx skills add owner/repo --skill skill-name"
     });
+  });
+
+  test("normalizes GitHub skill directory URLs into install commands", () => {
+    expect(
+      normalizeInstallInput("https://github.com/zhangga/aihub/tree/main/skills/chatgpt-images-fallback")
+    ).toEqual({
+      command: "npx",
+      args: [
+        "skills",
+        "add",
+        "https://github.com/zhangga/aihub",
+        "--skill",
+        "chatgpt-images-fallback"
+      ],
+      display: "npx skills add https://github.com/zhangga/aihub --skill chatgpt-images-fallback"
+    });
+
+    expect(
+      normalizeInstallInput(" https://github.com/owner/repo/tree/feature/branch/skills/skill-name/?tab=readme#usage ")
+    ).toHaveProperty("display", "npx skills add https://github.com/owner/repo --skill skill-name");
+  });
+
+  test("rejects unsupported GitHub URLs as install inputs", () => {
+    expect(normalizeInstallInput("https://github.com/owner/repo/tree/main/docs/skill-name")).toBeUndefined();
+    expect(normalizeInstallInput("https://github.com/owner/repo/blob/main/skills/skill-name/SKILL.md")).toBeUndefined();
+    expect(normalizeInstallInput("https://example.com/owner/repo/tree/main/skills/skill-name")).toBeUndefined();
+    expect(normalizeInstallInput("https://github.com/owner/repo/tree/main/skills/bad%20skill")).toBeUndefined();
   });
 
   test("rejects unsupported install command syntax", () => {

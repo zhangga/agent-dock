@@ -186,7 +186,7 @@ describe("AgentDock server", () => {
 
         expect(response.status).toBe(400);
         expect(payload).toEqual({
-          error: "Install command is required before a skill can be saved to backup."
+          error: "Install command or GitHub skill URL is required before a skill can be saved to backup."
         });
 
         const stackResponse = await fetch(`${baseUrl}/api/stack`);
@@ -264,6 +264,41 @@ describe("AgentDock server", () => {
             type: "skills.sh",
             package: "vercel-labs/skills",
             skill: "find-skills"
+          },
+          desiredState: "enabled"
+        });
+      },
+      { stackPath }
+    );
+  });
+
+  test("normalizes a GitHub skill URL when saving a skill", async () => {
+    const root = await makeTempRoot();
+    const stackPath = join(root, ".agentdock", "stack.json");
+    await writeSkill(root, "chatgpt-images-fallback");
+
+    await withServer(
+      [root],
+      async (baseUrl) => {
+        const response = await fetch(`${baseUrl}/api/stack/skills`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            id: "chatgpt-images-fallback",
+            installPath: join(root, "chatgpt-images-fallback"),
+            install: "https://github.com/zhangga/aihub/tree/main/skills/chatgpt-images-fallback"
+          })
+        });
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.stack.skills[0]).toEqual({
+          id: "chatgpt-images-fallback",
+          type: "skill",
+          source: {
+            type: "skills.sh",
+            package: "zhangga/aihub",
+            skill: "chatgpt-images-fallback"
           },
           desiredState: "enabled"
         });
@@ -725,7 +760,7 @@ describe("AgentDock server", () => {
 
         expect(response.status).toBe(400);
         expect(payload).toEqual({
-          error: "Only npx skills add ... commands are supported right now."
+          error: "Enter a npx skills add command or a GitHub skill URL."
         });
       },
       { stackPath }
@@ -743,10 +778,11 @@ describe("AgentDock server", () => {
       expect(response.headers.get("content-type")).toContain("text/html");
       expect(html).toContain("AgentDock");
       expect(html).toContain("skill-list");
+      expect(html).toContain("GitHub skill URL");
     });
   });
 
-  test("serves compact description UI with hover details", async () => {
+  test("serves compact description UI with expandable details", async () => {
     const root = await makeTempRoot();
 
     await withServer([root], async (baseUrl) => {
@@ -754,10 +790,30 @@ describe("AgentDock server", () => {
       const html = await response.text();
 
       expect(response.status).toBe(200);
-      expect(html).toContain("desc-popover");
+      expect(html).toContain("desc-details");
       expect(html).toContain("desc-preview");
       expect(html).toContain("desc-full");
       expect(html).toContain("previewDescription(");
+    });
+  });
+
+  test("serves accessible responsive console controls", async () => {
+    const root = await makeTempRoot();
+
+    await withServer([root], async (baseUrl) => {
+      const response = await fetch(baseUrl);
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain('class="metrics" aria-label="AgentDock counts"');
+      expect(html).toContain('id="view-subtitle"');
+      expect(html).toContain('id="search-wrap"');
+      expect(html).toContain('aria-label="Filter installed skills"');
+      expect(html).toContain('id="clear-search"');
+      expect(html).toContain("clearSearch.addEventListener");
+      expect(html).toContain('aria-label="Generated install script"');
+      expect(html).toContain('data-label="Install path"');
+      expect(html).toContain("No matches found");
     });
   });
 

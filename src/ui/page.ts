@@ -8,14 +8,18 @@ export function renderConsoleHtml(): string {
     <style>
       :root {
         color-scheme: light;
-        --ink: #19201d;
-        --muted: #68736e;
-        --line: #d8ddd9;
-        --panel: #f6f7f2;
-        --paper: #fffdf7;
-        --accent: #186f65;
-        --accent-2: #b6472a;
-        --shadow: 0 18px 48px rgba(25, 32, 29, 0.12);
+        --ink: #17211e;
+        --muted: #5d6b66;
+        --line: #d8e0dc;
+        --panel: #eef4f1;
+        --paper: #fbfcfa;
+        --surface: #ffffff;
+        --surface-soft: #f5f8f6;
+        --accent: #0f766e;
+        --accent-2: #b42318;
+        --success: #0b5d55;
+        --focus: rgba(15, 118, 110, 0.32);
+        --shadow: 0 16px 34px rgba(23, 33, 30, 0.1);
       }
 
       * {
@@ -25,18 +29,29 @@ export function renderConsoleHtml(): string {
       body {
         margin: 0;
         color: var(--ink);
-        background:
-          linear-gradient(90deg, rgba(24, 111, 101, 0.04) 1px, transparent 1px),
-          linear-gradient(rgba(24, 111, 101, 0.04) 1px, transparent 1px),
-          var(--paper);
-        background-size: 28px 28px;
-        font-family: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+        background: linear-gradient(180deg, #f7faf8 0%, var(--paper) 44%, #f4f8f6 100%);
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 16px;
+        line-height: 1.5;
       }
 
       button,
       input,
       textarea {
         font: inherit;
+      }
+
+      button {
+        touch-action: manipulation;
+      }
+
+      button:focus-visible,
+      input:focus-visible,
+      textarea:focus-visible,
+      summary:focus-visible,
+      a:focus-visible {
+        outline: 3px solid var(--focus);
+        outline-offset: 2px;
       }
 
       .shell {
@@ -46,9 +61,13 @@ export function renderConsoleHtml(): string {
       }
 
       .rail {
+        position: sticky;
+        top: 0;
+        align-self: start;
+        min-height: 100vh;
         min-width: 0;
         border-right: 1px solid var(--line);
-        background: rgba(246, 247, 242, 0.92);
+        background: rgba(247, 250, 248, 0.96);
         padding: 28px 24px;
       }
 
@@ -56,7 +75,7 @@ export function renderConsoleHtml(): string {
         display: flex;
         align-items: center;
         gap: 12px;
-        margin-bottom: 36px;
+        margin-bottom: 24px;
       }
 
       .mark {
@@ -64,7 +83,8 @@ export function renderConsoleHtml(): string {
         height: 34px;
         border: 2px solid var(--ink);
         background: var(--accent);
-        box-shadow: 5px 5px 0 var(--ink);
+        border-radius: 7px;
+        box-shadow: 4px 4px 0 var(--ink);
       }
 
       h1,
@@ -77,6 +97,7 @@ export function renderConsoleHtml(): string {
       h1 {
         font-size: 26px;
         line-height: 1;
+        font-weight: 750;
       }
 
       .caption {
@@ -85,25 +106,37 @@ export function renderConsoleHtml(): string {
         font-size: 13px;
       }
 
+      .metrics {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 18px;
+      }
+
       .metric {
-        border-top: 1px solid var(--line);
-        padding: 20px 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.66);
+        padding: 12px 14px;
       }
 
       .metric strong {
         display: block;
-        font-size: 44px;
+        font-size: 30px;
         line-height: 1;
+        font-weight: 750;
       }
 
       .metric span {
+        display: block;
+        margin-top: 5px;
         color: var(--muted);
         font-size: 14px;
+        line-height: 1.3;
       }
 
       .stack-file {
         border-top: 1px solid var(--line);
-        padding-top: 18px;
+        padding-top: 16px;
       }
 
       .stack-file-label {
@@ -137,6 +170,10 @@ export function renderConsoleHtml(): string {
         flex-wrap: wrap;
       }
 
+      .stack-file-actions .button {
+        flex: 1 1 auto;
+      }
+
       .button.secondary {
         color: var(--ink);
         background: transparent;
@@ -160,7 +197,8 @@ export function renderConsoleHtml(): string {
         width: 100%;
         margin-bottom: 8px;
         border: 1px solid var(--line);
-        background: rgba(255, 253, 247, 0.86);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.92);
         padding: 10px 11px;
         outline: none;
       }
@@ -176,24 +214,36 @@ export function renderConsoleHtml(): string {
 
       .toolbar {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         justify-content: space-between;
         gap: 16px;
         margin-bottom: 24px;
       }
 
       .toolbar h2 {
-        font-size: clamp(28px, 4vw, 56px);
-        line-height: 0.95;
+        font-size: clamp(28px, 3vw, 38px);
+        line-height: 1.08;
+        font-weight: 750;
         min-width: 0;
         max-width: 720px;
       }
 
+      .view-subtitle {
+        margin-top: 6px;
+        color: var(--muted);
+        max-width: 640px;
+        line-height: 1.45;
+      }
+
       .actions {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         gap: 10px;
         flex-wrap: wrap;
+      }
+
+      .search-wrap {
+        position: relative;
       }
 
       .view-tabs {
@@ -208,11 +258,15 @@ export function renderConsoleHtml(): string {
 
       .view-tab {
         min-width: 106px;
+        min-height: 44px;
         border: 1px solid var(--line);
         background: rgba(255, 253, 247, 0.7);
         color: var(--ink);
+        border-radius: 6px;
         padding: 10px 13px;
+        font-weight: 650;
         cursor: pointer;
+        transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
       }
 
       .view-tab:hover,
@@ -242,8 +296,9 @@ export function renderConsoleHtml(): string {
       .search {
         min-width: min(320px, 100%);
         border: 1px solid var(--line);
-        background: rgba(255, 253, 247, 0.86);
-        padding: 11px 13px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.92);
+        padding: 11px 72px 11px 13px;
         outline: none;
       }
 
@@ -251,12 +306,40 @@ export function renderConsoleHtml(): string {
         border-color: var(--accent);
       }
 
+      .search-clear {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        min-height: 30px;
+        border: 0;
+        border-radius: 5px;
+        background: transparent;
+        color: var(--muted);
+        padding: 4px 8px;
+        font-size: 13px;
+        font-weight: 650;
+        cursor: pointer;
+      }
+
+      .search-clear:hover:not(:disabled) {
+        color: var(--ink);
+        background: var(--surface-soft);
+      }
+
+      .search-clear[hidden] {
+        display: none;
+      }
+
       .button {
+        min-height: 44px;
         border: 1px solid var(--ink);
         background: var(--ink);
         color: var(--paper);
+        border-radius: 6px;
         padding: 11px 14px;
+        font-weight: 650;
         cursor: pointer;
+        transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
       }
 
       .button:hover:not(:disabled) {
@@ -274,6 +357,17 @@ export function renderConsoleHtml(): string {
         color: var(--muted);
         margin-bottom: 16px;
         min-height: 20px;
+      }
+
+      .status-line.busy::before {
+        content: "";
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        margin-right: 8px;
+        border-radius: 999px;
+        background: var(--accent);
+        box-shadow: 0 0 0 5px rgba(15, 118, 110, 0.1);
       }
 
       .stack-panel {
@@ -317,8 +411,9 @@ export function renderConsoleHtml(): string {
       .table-wrap {
         max-width: 100%;
         overflow-x: auto;
-        background: rgba(255, 253, 247, 0.9);
+        background: rgba(255, 255, 255, 0.92);
         border: 1px solid var(--line);
+        border-radius: 8px;
         box-shadow: var(--shadow);
       }
 
@@ -331,16 +426,28 @@ export function renderConsoleHtml(): string {
       th,
       td {
         text-align: left;
-        padding: 15px 18px;
+        padding: 13px 16px;
         border-bottom: 1px solid var(--line);
+        line-height: 1.45;
         vertical-align: top;
       }
 
       th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
         font-size: 12px;
         text-transform: uppercase;
         color: var(--muted);
         background: var(--panel);
+      }
+
+      tbody tr {
+        transition: background 140ms ease;
+      }
+
+      tbody tr:hover {
+        background: rgba(15, 118, 110, 0.035);
       }
 
       tr:last-child td {
@@ -349,7 +456,8 @@ export function renderConsoleHtml(): string {
 
       .skill-name {
         font-weight: 700;
-        font-size: 18px;
+        font-size: 16px;
+        overflow-wrap: anywhere;
       }
 
       .desc {
@@ -357,21 +465,31 @@ export function renderConsoleHtml(): string {
         max-width: 420px;
       }
 
-      .desc-popover {
-        display: block;
-        width: 100%;
+      .desc-details {
         max-width: 420px;
-        border: 0;
-        padding: 0;
-        color: inherit;
-        background: transparent;
-        text-align: left;
-        cursor: help;
       }
 
-      .desc-popover:focus {
-        outline: 2px solid rgba(24, 111, 101, 0.38);
-        outline-offset: 4px;
+      .desc-details summary {
+        color: var(--muted);
+        cursor: pointer;
+        list-style: none;
+      }
+
+      .desc-details summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .desc-details summary::after {
+        content: "Details";
+        display: inline-block;
+        margin-left: 8px;
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .desc-details[open] summary::after {
+        content: "Hide";
       }
 
       .desc-preview {
@@ -382,7 +500,6 @@ export function renderConsoleHtml(): string {
       }
 
       .desc-full {
-        display: none;
         margin-top: 9px;
         padding: 10px 12px;
         color: var(--ink);
@@ -392,12 +509,6 @@ export function renderConsoleHtml(): string {
         box-shadow: 0 10px 24px rgba(25, 32, 29, 0.08);
       }
 
-      .desc-popover:hover .desc-full,
-      .desc-popover:focus .desc-full,
-      .desc-popover:focus-within .desc-full {
-        display: block;
-      }
-
       .location-badge {
         display: inline-flex;
         align-items: center;
@@ -405,6 +516,7 @@ export function renderConsoleHtml(): string {
         justify-content: center;
         border: 1px solid var(--line);
         background: var(--panel);
+        border-radius: 999px;
         padding: 5px 8px;
         font-size: 13px;
         color: var(--ink);
@@ -415,16 +527,17 @@ export function renderConsoleHtml(): string {
         align-items: center;
         justify-content: center;
         min-width: 78px;
-        border: 1px solid rgba(24, 111, 101, 0.28);
-        background: rgba(24, 111, 101, 0.08);
+        border: 1px solid rgba(11, 93, 85, 0.28);
+        background: rgba(11, 93, 85, 0.1);
+        border-radius: 999px;
         padding: 5px 8px;
         font-size: 13px;
-        color: var(--accent);
+        color: var(--success);
       }
 
       .stack-status.missing {
-        border-color: rgba(182, 71, 42, 0.3);
-        background: rgba(182, 71, 42, 0.08);
+        border-color: rgba(180, 35, 24, 0.24);
+        background: rgba(180, 35, 24, 0.08);
         color: var(--accent-2);
       }
 
@@ -443,6 +556,7 @@ export function renderConsoleHtml(): string {
         margin-top: 6px;
         color: var(--accent);
         font-size: 13px;
+        font-weight: 650;
       }
 
       .restore-preview {
@@ -467,7 +581,8 @@ export function renderConsoleHtml(): string {
       .plan-stat {
         min-height: 96px;
         border: 1px solid var(--line);
-        background: rgba(255, 253, 247, 0.9);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.92);
         padding: 14px;
       }
 
@@ -496,7 +611,8 @@ export function renderConsoleHtml(): string {
         width: 100%;
         resize: vertical;
         border: 1px solid var(--line);
-        background: rgba(255, 253, 247, 0.92);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.92);
         color: var(--ink);
         padding: 13px;
         font-family: "SFMono-Regular", Consolas, monospace;
@@ -541,7 +657,8 @@ export function renderConsoleHtml(): string {
 
       .manual-command-input {
         border: 1px solid var(--line);
-        background: rgba(255, 253, 247, 0.92);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.92);
         padding: 9px 10px;
         outline: none;
       }
@@ -554,6 +671,7 @@ export function renderConsoleHtml(): string {
       .delete-skill-dialog {
         width: min(640px, calc(100vw - 32px));
         border: 1px solid var(--ink);
+        border-radius: 8px;
         padding: 0;
         color: var(--ink);
         background: var(--paper);
@@ -594,7 +712,8 @@ export function renderConsoleHtml(): string {
       .backup-command-input {
         width: 100%;
         border: 1px solid var(--line);
-        background: rgba(255, 253, 247, 0.92);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.92);
         color: var(--ink);
         padding: 10px 11px;
         font-family: "SFMono-Regular", Consolas, monospace;
@@ -619,11 +738,15 @@ export function renderConsoleHtml(): string {
       .delete-local-skill,
       .retry-restore {
         min-width: 78px;
+        min-height: 40px;
         border: 1px solid var(--ink);
         background: transparent;
         color: var(--ink);
+        border-radius: 6px;
         padding: 8px 10px;
+        font-weight: 650;
         cursor: pointer;
+        transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
       }
 
       .add-to-backup:hover:not(:disabled),
@@ -637,9 +760,9 @@ export function renderConsoleHtml(): string {
 
       .add-to-backup:disabled {
         cursor: default;
-        color: var(--accent);
-        background: rgba(24, 111, 101, 0.08);
-        border-color: rgba(24, 111, 101, 0.28);
+        color: var(--success);
+        background: rgba(11, 93, 85, 0.1);
+        border-color: rgba(11, 93, 85, 0.26);
       }
 
       .remove-stack-skill:hover:not(:disabled),
@@ -665,7 +788,21 @@ export function renderConsoleHtml(): string {
       .error {
         padding: 28px;
         border: 1px solid var(--line);
-        background: rgba(255, 253, 247, 0.9);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.92);
+      }
+
+      .empty strong,
+      .stack-empty strong {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--ink);
+        font-size: 18px;
+      }
+
+      .empty span,
+      .stack-empty span {
+        color: var(--muted);
       }
 
       .error {
@@ -679,8 +816,27 @@ export function renderConsoleHtml(): string {
         }
 
         .rail {
+          position: static;
+          min-height: auto;
           border-right: 0;
           border-bottom: 1px solid var(--line);
+          padding: 24px 16px;
+        }
+
+        .metrics {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .metric {
+          padding: 10px;
+        }
+
+        .metric strong {
+          font-size: 24px;
+        }
+
+        .metric span {
+          font-size: 12px;
         }
 
         .toolbar {
@@ -706,6 +862,23 @@ export function renderConsoleHtml(): string {
           padding: 24px 16px;
         }
 
+        .actions {
+          align-items: stretch;
+        }
+
+        .search-wrap {
+          width: 100%;
+        }
+
+        .search {
+          width: 100%;
+        }
+
+        .installed-local-tools {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
         .restore-preview-grid,
         .install-script-box {
           grid-template-columns: 1fr;
@@ -713,6 +886,94 @@ export function renderConsoleHtml(): string {
 
         .restore-preview-list {
           grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 680px) {
+        .table-wrap {
+          overflow: visible;
+          border: 0;
+          border-radius: 0;
+          background: transparent;
+          box-shadow: none;
+        }
+
+        table,
+        thead,
+        tbody,
+        tr,
+        td {
+          display: block;
+          width: 100%;
+        }
+
+        table {
+          min-width: 0;
+        }
+
+        thead {
+          display: none;
+        }
+
+        tbody tr {
+          margin-bottom: 12px;
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          background: var(--surface);
+          box-shadow: 0 10px 20px rgba(23, 33, 30, 0.06);
+        }
+
+        td {
+          display: grid;
+          grid-template-columns: 92px minmax(0, 1fr);
+          gap: 12px;
+          padding: 10px 14px;
+          border-bottom: 0;
+        }
+
+        td::before {
+          content: attr(data-label);
+          color: var(--muted);
+          font-size: 12px;
+          font-weight: 750;
+          text-transform: uppercase;
+        }
+
+        td:first-child {
+          display: block;
+          padding-top: 14px;
+        }
+
+        td:first-child::before {
+          display: none;
+        }
+
+        td:last-child {
+          padding-bottom: 14px;
+        }
+
+        .add-to-backup,
+        .remove-stack-skill,
+        .delete-local-skill,
+        .retry-restore,
+        .manual-command-form .button {
+          width: 100%;
+        }
+
+        .install-command,
+        .desc,
+        .desc-details {
+          max-width: 100%;
+        }
+      }
+
+      @media (max-width: 430px) {
+        .metrics {
+          grid-template-columns: 1fr;
+        }
+
+        .stack-file-actions .button {
+          flex-basis: 100%;
         }
       }
     </style>
@@ -727,17 +988,19 @@ export function renderConsoleHtml(): string {
             <p class="caption">Skills backup and restore</p>
           </div>
         </div>
-        <div class="metric">
-          <strong id="skill-count">-</strong>
-          <span>installed skills found</span>
-        </div>
-        <div class="metric">
-          <strong id="root-count">-</strong>
-          <span>source roots represented</span>
-        </div>
-        <div class="metric">
-          <strong id="stack-count">-</strong>
-          <span>skills in backup</span>
+        <div class="metrics" aria-label="AgentDock counts">
+          <div class="metric">
+            <strong id="skill-count">-</strong>
+            <span>installed skills</span>
+          </div>
+          <div class="metric">
+            <strong id="root-count">-</strong>
+            <span>source roots</span>
+          </div>
+          <div class="metric">
+            <strong id="stack-count">-</strong>
+            <span>in backup</span>
+          </div>
         </div>
         <div class="stack-file">
           <div class="stack-file-label">Current backup file</div>
@@ -759,9 +1022,15 @@ export function renderConsoleHtml(): string {
       </aside>
       <main class="main">
         <div class="toolbar">
-          <h2 id="view-title">My Skills</h2>
+          <div>
+            <h2 id="view-title">My Skills</h2>
+            <p id="view-subtitle" class="view-subtitle">Browse local skills and save the ones you want to keep.</p>
+          </div>
           <div class="actions">
-            <input id="search" class="search" type="search" placeholder="Filter skills" autocomplete="off" />
+            <div id="search-wrap" class="search-wrap">
+              <input id="search" class="search" type="search" placeholder="Filter skills" autocomplete="off" aria-label="Filter installed skills" />
+              <button id="clear-search" class="search-clear" type="button" hidden>Clear</button>
+            </div>
             <button id="refresh" class="button" type="button">Refresh</button>
           </div>
         </div>
@@ -802,7 +1071,7 @@ export function renderConsoleHtml(): string {
             <div class="restore-preview-grid">
               <div id="restore-preview-list" class="restore-preview-list" aria-live="polite"></div>
               <div class="install-script-box">
-                <textarea id="install-script" class="install-script" readonly spellcheck="false"></textarea>
+                <textarea id="install-script" class="install-script" readonly spellcheck="false" aria-label="Generated install script"></textarea>
                 <div class="restore-actions">
                   <button id="start-restore" class="button" type="button" disabled>Start restore</button>
                   <button id="copy-install-script" class="button secondary" type="button" disabled>Copy install script</button>
@@ -820,10 +1089,10 @@ export function renderConsoleHtml(): string {
         <h3 id="backup-confirm-heading">Confirm backup command</h3>
         <p id="backup-confirm-message" class="backup-confirm-message">Review the install command before this skill is saved.</p>
         <label class="backup-command-label" for="backup-command-input">
-          Install command
+          Install command or GitHub skill URL
           <input id="backup-command-input" class="backup-command-input" type="text" autocomplete="off" placeholder="npx skills add https://github.com/owner/repo --skill skill-name" />
         </label>
-        <p id="backup-command-help" class="backup-command-help">This backup needs an install command before it can be saved.</p>
+        <p id="backup-command-help" class="backup-command-help">This backup needs an install command or GitHub skill URL before it can be saved.</p>
         <div class="dialog-actions">
           <button id="cancel-backup-confirm" class="button secondary" type="button">Cancel</button>
           <button id="confirm-backup-save" class="button" type="submit">Save to backup</button>
@@ -866,9 +1135,12 @@ export function renderConsoleHtml(): string {
       const startRestoreButton = document.querySelector("#start-restore");
       const statusLine = document.querySelector("#status-line");
       const search = document.querySelector("#search");
+      const searchWrap = document.querySelector("#search-wrap");
+      const clearSearch = document.querySelector("#clear-search");
       const showDeleteControlsButton = document.querySelector("#show-delete-controls");
       const refresh = document.querySelector("#refresh");
       const viewTitle = document.querySelector("#view-title");
+      const viewSubtitle = document.querySelector("#view-subtitle");
       const viewTabs = document.querySelectorAll(".view-tab");
       const viewPanels = document.querySelectorAll(".view-panel");
       const skillCount = document.querySelector("#skill-count");
@@ -897,7 +1169,10 @@ export function renderConsoleHtml(): string {
 
       async function loadSkills() {
         statusLine.textContent = "Scanning local skill directories...";
+        statusLine.classList.add("busy");
         list.innerHTML = "";
+        list.setAttribute("aria-busy", "true");
+        refresh.disabled = true;
 
         try {
           const [skillsResponse, stackResponse] = await Promise.all([
@@ -920,6 +1195,10 @@ export function renderConsoleHtml(): string {
           stackFileState.textContent = "Could not check stack file.";
           statusLine.textContent = "Scan failed";
           list.innerHTML = '<div class="error">Could not scan local skills. Check the terminal for details.</div>';
+        } finally {
+          refresh.disabled = false;
+          list.removeAttribute("aria-busy");
+          statusLine.classList.remove("busy");
         }
       }
 
@@ -928,27 +1207,23 @@ export function renderConsoleHtml(): string {
         const saved = new Set(state.stack.skills.map(stackSkillKey));
         const installed = new Set(state.skills.map(installedSkillKey));
         const installedById = getInstalledSkillById();
-        const filtered = state.skills.filter((skill) => {
-          return [skill.name, skill.description, skill.installPath, skill.sourceRoot, skill.location && skill.location.label]
-            .join(" ")
-            .toLowerCase()
-            .includes(query);
-        });
+        const filtered = filterSkills(query);
 
         const roots = new Set(state.skills.map((skill) => skill.sourceRoot));
         skillCount.textContent = String(state.skills.length);
         rootCount.textContent = String(roots.size);
         stackCount.textContent = String(state.stack.skills.length);
+        renderTabCounts(installed);
         renderStackFile();
         renderBackupContents(installed, installedById);
         renderRestorePreview(installed);
         activateView(state.activeView);
-        statusLine.textContent = query
-          ? filtered.length + " of " + state.skills.length + " skills match"
-          : state.skills.length + " installed skills found";
+        statusLine.textContent = getActiveStatusLine(filtered);
 
         if (filtered.length === 0) {
-          list.innerHTML = '<div class="empty">No installed skills matched the current view.</div>';
+          list.innerHTML = query
+            ? '<div class="empty"><strong>No matches found</strong><span>Try another name, location, or path fragment.</span></div>'
+            : '<div class="empty"><strong>No installed skills found</strong><span>Refresh after installing skills or add a custom skill root from the CLI.</span></div>';
           return;
         }
 
@@ -960,15 +1235,15 @@ export function renderConsoleHtml(): string {
           ...filtered.map((skill) => {
             const isSaved = saved.has(stackSkillKey(skill));
             const deleteCell = state.showDeleteControls
-              ? '<td><button class="delete-local-skill" type="button" data-id="' + escapeHtml(skill.id) + '" data-name="' + escapeHtml(skill.name) + '" data-install-path="' + escapeHtml(skill.installPath) + '">Uninstall</button></td>'
+              ? '<td data-label="Uninstall"><button class="delete-local-skill" type="button" data-id="' + escapeHtml(skill.id) + '" data-name="' + escapeHtml(skill.name) + '" data-install-path="' + escapeHtml(skill.installPath) + '">Uninstall</button></td>'
               : "";
             return [
             '<tr>',
-            '<td><div class="skill-name">' + escapeHtml(skill.name) + '</div></td>',
-            '<td class="desc">' + renderDescription(skill.description) + '</td>',
-            '<td>' + renderLocation(skill) + '</td>',
-            '<td><code>' + escapeHtml(skill.installPath) + '</code></td>',
-            '<td><button class="add-to-backup" type="button" data-id="' + escapeHtml(skill.id) + '" data-install-path="' + escapeHtml(skill.installPath) + '"' + (isSaved ? ' disabled' : '') + '>' + (isSaved ? 'In backup' : 'Add to backup') + '</button></td>',
+            '<td data-label="Name"><div class="skill-name">' + escapeHtml(skill.name) + '</div></td>',
+            '<td class="desc" data-label="Description">' + renderDescription(skill.description) + '</td>',
+            '<td data-label="Location">' + renderLocation(skill) + '</td>',
+            '<td data-label="Install path"><code>' + escapeHtml(skill.installPath) + '</code></td>',
+            '<td data-label="Backup"><button class="add-to-backup" type="button" data-id="' + escapeHtml(skill.id) + '" data-install-path="' + escapeHtml(skill.installPath) + '"' + (isSaved ? ' disabled' : '') + '>' + (isSaved ? 'In backup' : 'Add to backup') + '</button></td>',
             deleteCell,
             '</tr>'
           ].join("");
@@ -987,12 +1262,19 @@ export function renderConsoleHtml(): string {
           backup: "Backup",
           restore: "Restore"
         };
+        const subtitles = {
+          installed: "Browse local skills and save the ones you want to keep.",
+          backup: "Review the portable restore sources saved in your backup file.",
+          restore: "Preview what another machine would install from this backup."
+        };
 
         viewTitle.textContent = titles[nextView] || "My Skills";
-        search.hidden = nextView !== "installed";
+        viewSubtitle.textContent = subtitles[nextView] || subtitles.installed;
+        searchWrap.hidden = nextView !== "installed";
         showDeleteControlsButton.hidden = nextView !== "installed";
         showDeleteControlsButton.textContent = state.showDeleteControls ? "Hide uninstall" : "Show uninstall";
         showDeleteControlsButton.setAttribute("aria-pressed", state.showDeleteControls ? "true" : "false");
+        clearSearch.hidden = nextView !== "installed" || !search.value;
 
         viewTabs.forEach((tab) => {
           const isActive = tab.dataset.view === nextView;
@@ -1003,6 +1285,57 @@ export function renderConsoleHtml(): string {
         viewPanels.forEach((panel) => {
           panel.hidden = panel.dataset.view !== nextView;
         });
+
+        statusLine.textContent = getActiveStatusLine();
+      }
+
+      function filterSkills(query) {
+        return state.skills.filter((skill) => {
+          return [skill.name, skill.description, skill.installPath, skill.sourceRoot, skill.location && skill.location.label]
+            .join(" ")
+            .toLowerCase()
+            .includes(query);
+        });
+      }
+
+      function renderTabCounts(installed) {
+        const plan = getRestorePlan(installed);
+        const missingCount = plan.installable.length + plan.needsAttention.length;
+        document.querySelector("#installed-tab").textContent = "Installed (" + state.skills.length + ")";
+        document.querySelector("#backup-tab").textContent = "Backup (" + (state.stack.skills || []).length + ")";
+        document.querySelector("#restore-tab").textContent = "Restore (" + missingCount + ")";
+      }
+
+      function getActiveStatusLine(filteredOverride) {
+        const query = search.value.trim().toLowerCase();
+
+        if (state.activeView === "backup") {
+          const installed = new Set(state.skills.map(installedSkillKey));
+          const stackSkills = state.stack.skills || [];
+          const installedCount = stackSkills.filter((skill) => installed.has(installedSkillKey(skill))).length;
+          return stackSkills.length
+            ? installedCount + " installed / " + stackSkills.length + " in backup"
+            : "No skills in backup yet";
+        }
+
+        if (state.activeView === "restore") {
+          const installed = new Set(state.skills.map(installedSkillKey));
+          const plan = getRestorePlan(installed);
+          if (plan.installable.length > 0) {
+            return plan.installable.length + " missing skills are ready to restore";
+          }
+          if (plan.needsAttention.length > 0) {
+            return plan.needsAttention.length + " backup skills need an install command";
+          }
+          return (state.stack.skills || []).length
+            ? "All backup skills are already installed"
+            : "No backup skills to restore";
+        }
+
+        const filtered = filteredOverride || filterSkills(query);
+        return query
+          ? filtered.length + " of " + state.skills.length + " skills match"
+          : state.skills.length + " installed skills found";
       }
 
       function renderBackupContents(installed, installedById) {
@@ -1013,7 +1346,7 @@ export function renderConsoleHtml(): string {
           : "0 in backup";
 
         if (stackSkills.length === 0) {
-          backupList.innerHTML = '<div class="stack-empty">No skills in this backup yet.</div>';
+          backupList.innerHTML = '<div class="stack-empty"><strong>No skills saved yet</strong><span>Add skills from the Installed tab to build a portable backup.</span></div>';
           return;
         }
 
@@ -1027,11 +1360,11 @@ export function renderConsoleHtml(): string {
             const currentSkill = installedById.get(skill.id);
             return [
               '<tr>',
-              '<td><div class="skill-name">' + escapeHtml(currentSkill ? currentSkill.name : skill.id) + '</div></td>',
-              '<td>' + renderStackStatus(isInstalled) + '</td>',
-              '<td>' + renderRestoreSource(skill) + renderManualCommandForm(skill) + '</td>',
-              '<td>' + renderStackLocation(currentSkill) + '</td>',
-              '<td><button class="remove-stack-skill" type="button" data-id="' + escapeHtml(skill.id) + '">Remove</button></td>',
+              '<td data-label="Name"><div class="skill-name">' + escapeHtml(currentSkill ? currentSkill.name : skill.id) + '</div></td>',
+              '<td data-label="Status">' + renderStackStatus(isInstalled) + '</td>',
+              '<td data-label="Restore source">' + renderRestoreSource(skill) + renderManualCommandForm(skill) + '</td>',
+              '<td data-label="Location">' + renderStackLocation(currentSkill) + '</td>',
+              '<td data-label="Action"><button class="remove-stack-skill" type="button" data-id="' + escapeHtml(skill.id) + '">Remove</button></td>',
               '</tr>'
             ].join("");
           }),
@@ -1154,7 +1487,7 @@ export function renderConsoleHtml(): string {
 
         return [
           '<form class="manual-command-form" data-id="' + escapeHtml(skill.id) + '">',
-          '<input class="manual-command-input" type="text" autocomplete="off" placeholder="npx skills add https://github.com/owner/repo --skill ' + escapeHtml(skill.id) + '" />',
+          '<input class="manual-command-input" type="text" autocomplete="off" placeholder="npx skills add ... or GitHub skill URL" />',
           '<button class="button secondary" type="submit">Save and add to restore</button>',
           '</form>'
         ].join("");
@@ -1193,10 +1526,10 @@ export function renderConsoleHtml(): string {
         }
 
         return [
-          '<button class="desc-popover" type="button" title="Hover or focus to show full description">',
-          '<span class="desc-preview">' + escapeHtml(preview) + '</span>',
-          '<span class="desc-full" role="tooltip">' + escapeHtml(fullDescription) + '</span>',
-          '</button>'
+          '<details class="desc-details">',
+          '<summary><span class="desc-preview">' + escapeHtml(preview) + '</span></summary>',
+          '<div class="desc-full">' + escapeHtml(fullDescription) + '</div>',
+          '</details>'
         ].join("");
       }
 
@@ -1249,12 +1582,12 @@ export function renderConsoleHtml(): string {
           backupCommandHelp.textContent = "This command will be used to install the skill on another computer.";
         } else {
           backupConfirmMessage.textContent = "AgentDock could not find a matching skills.sh entry for " + pendingBackup.name + ".";
-          backupCommandHelp.textContent = pendingBackup.reason || "Paste a npx skills add command before this skill can be saved.";
+          backupCommandHelp.textContent = pendingBackup.reason || "Paste a npx skills add command or GitHub skill URL before this skill can be saved.";
         }
 
         statusLine.textContent = pendingBackup.command
           ? "Review install command before saving"
-          : "Enter an install command before saving";
+          : "Enter an install command or GitHub skill URL before saving";
 
         if (typeof backupConfirmDialog.showModal === "function") {
           backupConfirmDialog.showModal();
@@ -1332,7 +1665,7 @@ export function renderConsoleHtml(): string {
       async function saveConfirmedSkill(id, installPath, install) {
         const command = String(install || "").trim();
         if (!command) {
-          statusLine.textContent = "Enter an install command before saving";
+          statusLine.textContent = "Enter an install command or GitHub skill URL before saving";
           backupCommandInput.focus();
           return;
         }
@@ -1576,10 +1909,10 @@ export function renderConsoleHtml(): string {
           '<div class="table-wrap"><table><thead><tr><th>Skill</th><th>Status</th><th>Message</th><th></th></tr></thead><tbody>',
           ...state.restoreResults.map((result) => [
             '<tr>',
-            '<td><div class="skill-name">' + escapeHtml(result.id) + '</div></td>',
-            '<td>' + escapeHtml(result.status) + '</td>',
-            '<td><span class="desc-preview">' + escapeHtml(result.message || "") + '</span>' + (result.detail ? '<div class="desc">' + escapeHtml(result.detail) + '</div>' : "") + '</td>',
-            '<td>' + (result.status === "failed" ? '<button class="retry-restore" type="button" data-id="' + escapeHtml(result.id) + '">Retry</button>' : "") + '</td>',
+            '<td data-label="Skill"><div class="skill-name">' + escapeHtml(result.id) + '</div></td>',
+            '<td data-label="Status">' + escapeHtml(result.status) + '</td>',
+            '<td data-label="Message"><span class="desc-preview">' + escapeHtml(result.message || "") + '</span>' + (result.detail ? '<div class="desc">' + escapeHtml(result.detail) + '</div>' : "") + '</td>',
+            '<td data-label="Action">' + (result.status === "failed" ? '<button class="retry-restore" type="button" data-id="' + escapeHtml(result.id) + '">Retry</button>' : "") + '</td>',
             '</tr>'
           ].join("")),
           '</tbody></table></div>'
@@ -1589,7 +1922,7 @@ export function renderConsoleHtml(): string {
       async function saveManualInstallCommand(id, install) {
         const command = String(install || "").trim();
         if (!command) {
-          statusLine.textContent = "Enter an install command";
+          statusLine.textContent = "Enter an install command or GitHub skill URL";
           return;
         }
 
@@ -1643,6 +1976,11 @@ export function renderConsoleHtml(): string {
       refresh.addEventListener("click", loadSkills);
       showDeleteControlsButton.addEventListener("click", toggleDeleteControls);
       search.addEventListener("input", render);
+      clearSearch.addEventListener("click", () => {
+        search.value = "";
+        render();
+        search.focus();
+      });
       viewTabs.forEach((tab) => {
         tab.addEventListener("click", () => activateView(tab.dataset.view));
       });

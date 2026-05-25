@@ -121,6 +121,10 @@ export function getRestoreCommand(skill: StackSkill): RestoreCommand | undefined
   return undefined;
 }
 
+export function normalizeInstallInput(input: string): RestoreCommand | undefined {
+  return parseInstallCommand(input) ?? parseGitHubSkillUrl(input);
+}
+
 export function parseInstallCommand(command: string): RestoreCommand | undefined {
   const normalized = command.trim().replace(/\s+/g, " ");
   const match = normalized.match(
@@ -136,6 +140,66 @@ export function parseInstallCommand(command: string): RestoreCommand | undefined
     args: ["skills", "add", match[1], "--skill", match[2]],
     display: `npx skills add ${match[1]} --skill ${match[2]}`
   };
+}
+
+function parseGitHubSkillUrl(input: string): RestoreCommand | undefined {
+  let url: URL;
+
+  try {
+    url = new URL(input.trim());
+  } catch {
+    return undefined;
+  }
+
+  if (url.protocol !== "https:" || url.hostname !== "github.com") {
+    return undefined;
+  }
+
+  const segments = decodePathSegments(url.pathname);
+  const owner = segments[0];
+  const repo = segments[1];
+
+  if (!owner || !repo || segments[2] !== "tree" || !isSafePackageSegment(owner) || !isSafePackageSegment(repo)) {
+    return undefined;
+  }
+
+  const skillsIndex = findLastSkillsPathSegment(segments);
+  const skill = skillsIndex >= 0 ? segments[skillsIndex + 1] : undefined;
+
+  if (!skill || !isSafeSkillSegment(skill)) {
+    return undefined;
+  }
+
+  return parseInstallCommand(`npx skills add https://github.com/${owner}/${repo} --skill ${skill}`);
+}
+
+function decodePathSegments(pathname: string): string[] {
+  try {
+    return pathname
+      .split("/")
+      .filter(Boolean)
+      .map((segment) => decodeURIComponent(segment));
+  } catch {
+    return [];
+  }
+}
+
+function findLastSkillsPathSegment(segments: string[]): number {
+  for (let index = segments.length - 2; index >= 3; index -= 1) {
+    if (segments[index] === "skills") {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function isSafePackageSegment(value: string): boolean {
+  return /^[A-Za-z0-9_.-]+$/.test(value);
+}
+
+function isSafeSkillSegment(value: string): boolean {
+  return /^[A-Za-z0-9_.:-]+$/.test(value);
 }
 
 async function runRestoreCommand(command: string, args: string[]): Promise<RestoreRunnerResult> {

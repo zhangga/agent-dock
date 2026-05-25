@@ -13,7 +13,7 @@ import { removeInstalledSkill, type SkillRemoveRunner } from "../core/skillRemov
 import { scanInstalledSkills } from "../core/skillScanner.js";
 import {
   buildRestorePlan,
-  parseInstallCommand,
+  normalizeInstallInput,
   restoreMissingSkills,
   type RestoreCommandRunner
 } from "../core/skillRestoreExecutor.js";
@@ -218,13 +218,13 @@ async function handleRequest(
     const installCommand = typeof body.install === "string" ? body.install.trim() : "";
 
     if (!installCommand) {
-      sendJson(response, 400, { error: "Install command is required before a skill can be saved to backup." });
+      sendJson(response, 400, { error: "Install command or GitHub skill URL is required before a skill can be saved to backup." });
       return;
     }
 
-    const parsedCommand = parseInstallCommand(installCommand);
+    const parsedCommand = normalizeInstallInput(installCommand);
     if (!parsedCommand) {
-      sendJson(response, 400, { error: "Only npx skills add ... commands are supported right now." });
+      sendJson(response, 400, { error: "Enter a npx skills add command or a GitHub skill URL." });
       return;
     }
 
@@ -297,9 +297,9 @@ async function handleRequest(
       return;
     }
 
-    const parsedCommand = parseInstallCommand(install);
+    const parsedCommand = normalizeInstallInput(install);
     if (!parsedCommand) {
-      sendJson(response, 400, { error: "Only npx skills add ... commands are supported right now." });
+      sendJson(response, 400, { error: "Enter a npx skills add command or a GitHub skill URL." });
       return;
     }
 
