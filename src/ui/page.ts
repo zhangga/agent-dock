@@ -226,6 +226,19 @@ export function renderConsoleHtml(): string {
         display: none;
       }
 
+      .installed-local-tools {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .installed-local-tools-label {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
       .search {
         min-width: min(320px, 100%);
         border: 1px solid var(--line);
@@ -537,7 +550,8 @@ export function renderConsoleHtml(): string {
         border-color: var(--accent);
       }
 
-      .backup-confirm-dialog {
+      .backup-confirm-dialog,
+      .delete-skill-dialog {
         width: min(640px, calc(100vw - 32px));
         border: 1px solid var(--ink);
         padding: 0;
@@ -546,7 +560,8 @@ export function renderConsoleHtml(): string {
         box-shadow: var(--shadow);
       }
 
-      .backup-confirm-dialog::backdrop {
+      .backup-confirm-dialog::backdrop,
+      .delete-skill-dialog::backdrop {
         background: rgba(25, 32, 29, 0.28);
       }
 
@@ -601,6 +616,7 @@ export function renderConsoleHtml(): string {
 
       .add-to-backup,
       .remove-stack-skill,
+      .delete-local-skill,
       .retry-restore {
         min-width: 78px;
         border: 1px solid var(--ink);
@@ -612,6 +628,7 @@ export function renderConsoleHtml(): string {
 
       .add-to-backup:hover:not(:disabled),
       .remove-stack-skill:hover:not(:disabled),
+      .delete-local-skill:hover:not(:disabled),
       .retry-restore:hover:not(:disabled) {
         color: var(--paper);
         background: var(--accent);
@@ -625,9 +642,16 @@ export function renderConsoleHtml(): string {
         border-color: rgba(24, 111, 101, 0.28);
       }
 
-      .remove-stack-skill:hover:not(:disabled) {
+      .remove-stack-skill:hover:not(:disabled),
+      .delete-local-skill:hover:not(:disabled) {
         background: var(--accent-2);
         border-color: var(--accent-2);
+      }
+
+      .delete-skill-path {
+        display: block;
+        margin-top: 8px;
+        color: var(--ink);
       }
 
       code {
@@ -748,6 +772,10 @@ export function renderConsoleHtml(): string {
         </div>
         <p id="status-line" class="status-line">Scanning local skill directories...</p>
         <section id="installed-panel" class="view-panel" role="tabpanel" aria-labelledby="installed-tab" data-view="installed">
+          <div class="installed-local-tools">
+            <span class="installed-local-tools-label">Local uninstall</span>
+            <button id="show-delete-controls" class="button secondary" type="button" aria-pressed="false">Show uninstall</button>
+          </div>
           <section id="skill-list" aria-live="polite"></section>
         </section>
         <section id="backup-panel" class="view-panel" role="tabpanel" aria-labelledby="backup-tab" data-view="backup" hidden>
@@ -802,6 +830,20 @@ export function renderConsoleHtml(): string {
         </div>
       </form>
     </dialog>
+    <dialog id="delete-skill-dialog" class="delete-skill-dialog" aria-labelledby="delete-skill-heading">
+      <form id="delete-skill-form" class="backup-confirm-form">
+        <h3 id="delete-skill-heading">Uninstall skill</h3>
+        <p id="delete-skill-message" class="backup-confirm-message">This will remove the skill from local agent installs.</p>
+        <p class="backup-command-help">
+          This will not remove the skill from Backup.
+          <code id="delete-skill-path" class="delete-skill-path">-</code>
+        </p>
+        <div class="dialog-actions">
+          <button id="cancel-delete-skill" class="button secondary" type="button">Cancel</button>
+          <button id="confirm-delete-skill" class="button" type="submit">Uninstall</button>
+        </div>
+      </form>
+    </dialog>
     <script>
       const state = {
         skills: [],
@@ -809,6 +851,8 @@ export function renderConsoleHtml(): string {
         stackFile: { path: "", exists: false },
         restoreResults: [],
         pendingBackup: null,
+        pendingDelete: null,
+        showDeleteControls: false,
         activeView: "installed"
       };
       const list = document.querySelector("#skill-list");
@@ -822,6 +866,7 @@ export function renderConsoleHtml(): string {
       const startRestoreButton = document.querySelector("#start-restore");
       const statusLine = document.querySelector("#status-line");
       const search = document.querySelector("#search");
+      const showDeleteControlsButton = document.querySelector("#show-delete-controls");
       const refresh = document.querySelector("#refresh");
       const viewTitle = document.querySelector("#view-title");
       const viewTabs = document.querySelectorAll(".view-tab");
@@ -844,6 +889,11 @@ export function renderConsoleHtml(): string {
       const backupCommandInput = document.querySelector("#backup-command-input");
       const backupCommandHelp = document.querySelector("#backup-command-help");
       const cancelBackupConfirm = document.querySelector("#cancel-backup-confirm");
+      const deleteSkillDialog = document.querySelector("#delete-skill-dialog");
+      const deleteSkillForm = document.querySelector("#delete-skill-form");
+      const deleteSkillMessage = document.querySelector("#delete-skill-message");
+      const deleteSkillPath = document.querySelector("#delete-skill-path");
+      const cancelDeleteSkill = document.querySelector("#cancel-delete-skill");
 
       async function loadSkills() {
         statusLine.textContent = "Scanning local skill directories...";
@@ -905,10 +955,13 @@ export function renderConsoleHtml(): string {
         list.innerHTML = [
           '<div class="table-wrap">',
           '<table>',
-          '<thead><tr><th>Name</th><th>Description</th><th>Location</th><th>Install path</th><th>Backup</th></tr></thead>',
+          '<thead><tr><th>Name</th><th>Description</th><th>Location</th><th>Install path</th><th>Backup</th>' + (state.showDeleteControls ? '<th>Uninstall</th>' : '') + '</tr></thead>',
           '<tbody>',
           ...filtered.map((skill) => {
             const isSaved = saved.has(stackSkillKey(skill));
+            const deleteCell = state.showDeleteControls
+              ? '<td><button class="delete-local-skill" type="button" data-id="' + escapeHtml(skill.id) + '" data-name="' + escapeHtml(skill.name) + '" data-install-path="' + escapeHtml(skill.installPath) + '">Uninstall</button></td>'
+              : "";
             return [
             '<tr>',
             '<td><div class="skill-name">' + escapeHtml(skill.name) + '</div></td>',
@@ -916,6 +969,7 @@ export function renderConsoleHtml(): string {
             '<td>' + renderLocation(skill) + '</td>',
             '<td><code>' + escapeHtml(skill.installPath) + '</code></td>',
             '<td><button class="add-to-backup" type="button" data-id="' + escapeHtml(skill.id) + '" data-install-path="' + escapeHtml(skill.installPath) + '"' + (isSaved ? ' disabled' : '') + '>' + (isSaved ? 'In backup' : 'Add to backup') + '</button></td>',
+            deleteCell,
             '</tr>'
           ].join("");
           }),
@@ -936,6 +990,9 @@ export function renderConsoleHtml(): string {
 
         viewTitle.textContent = titles[nextView] || "My Skills";
         search.hidden = nextView !== "installed";
+        showDeleteControlsButton.hidden = nextView !== "installed";
+        showDeleteControlsButton.textContent = state.showDeleteControls ? "Hide uninstall" : "Show uninstall";
+        showDeleteControlsButton.setAttribute("aria-pressed", state.showDeleteControls ? "true" : "false");
 
         viewTabs.forEach((tab) => {
           const isActive = tab.dataset.view === nextView;
@@ -1217,6 +1274,59 @@ export function renderConsoleHtml(): string {
         } else {
           backupConfirmDialog.removeAttribute("open");
         }
+      }
+
+      function toggleDeleteControls() {
+        state.showDeleteControls = !state.showDeleteControls;
+        render();
+      }
+
+      function openDeleteSkillConfirm(skill) {
+        state.pendingDelete = {
+          id: skill.id,
+          installPath: skill.installPath
+        };
+        deleteSkillMessage.textContent = "Uninstall " + skill.name + " from this computer?";
+        deleteSkillPath.textContent = skill.installPath;
+        statusLine.textContent = "Confirm skill uninstall";
+
+        if (typeof deleteSkillDialog.showModal === "function") {
+          deleteSkillDialog.showModal();
+        } else {
+          deleteSkillDialog.setAttribute("open", "");
+        }
+      }
+
+      function closeDeleteSkillConfirm() {
+        state.pendingDelete = null;
+        deleteSkillPath.textContent = "-";
+        if (deleteSkillDialog.open && typeof deleteSkillDialog.close === "function") {
+          deleteSkillDialog.close();
+        } else {
+          deleteSkillDialog.removeAttribute("open");
+        }
+      }
+
+      async function deleteLocalSkill(id, installPath) {
+        statusLine.textContent = "Uninstalling skill...";
+        const response = await fetch("/api/skills", {
+          method: "DELETE",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id, installPath })
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          statusLine.textContent = payload.error || "Could not uninstall skill";
+          return;
+        }
+
+        state.skills = payload.skills || state.skills;
+        state.stack = payload.stack || state.stack;
+        state.stackFile = payload.stackFile || state.stackFile;
+        closeDeleteSkillConfirm();
+        statusLine.textContent = "Skill uninstalled. Backup kept.";
+        render();
       }
 
       async function saveConfirmedSkill(id, installPath, install) {
@@ -1531,6 +1641,7 @@ export function renderConsoleHtml(): string {
       }
 
       refresh.addEventListener("click", loadSkills);
+      showDeleteControlsButton.addEventListener("click", toggleDeleteControls);
       search.addEventListener("input", render);
       viewTabs.forEach((tab) => {
         tab.addEventListener("click", () => activateView(tab.dataset.view));
@@ -1560,10 +1671,29 @@ export function renderConsoleHtml(): string {
       backupConfirmDialog.addEventListener("cancel", () => {
         state.pendingBackup = null;
       });
+      deleteSkillForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (!state.pendingDelete) return;
+        deleteLocalSkill(state.pendingDelete.id, state.pendingDelete.installPath);
+      });
+      cancelDeleteSkill.addEventListener("click", closeDeleteSkillConfirm);
+      deleteSkillDialog.addEventListener("cancel", () => {
+        state.pendingDelete = null;
+      });
       list.addEventListener("click", (event) => {
-        const button = event.target.closest(".add-to-backup");
-        if (!button || button.disabled) return;
-        resolveSkillBeforeBackup(button.dataset.id, button.dataset.installPath, button);
+        const backupButton = event.target.closest(".add-to-backup");
+        if (backupButton && !backupButton.disabled) {
+          resolveSkillBeforeBackup(backupButton.dataset.id, backupButton.dataset.installPath, backupButton);
+          return;
+        }
+
+        const deleteButton = event.target.closest(".delete-local-skill");
+        if (!deleteButton || deleteButton.disabled) return;
+        openDeleteSkillConfirm({
+          id: deleteButton.dataset.id,
+          name: deleteButton.dataset.name,
+          installPath: deleteButton.dataset.installPath
+        });
       });
       backupList.addEventListener("click", (event) => {
         const button = event.target.closest(".remove-stack-skill");

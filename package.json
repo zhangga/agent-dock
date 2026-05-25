@@ -1,0 +1,26 @@
+{
+  "name": "agentdock",
+  "version": "0.1.0",
+  "description": "Local console for managing installed Agent capabilities.",
+  "type": "module",
+  "bin": {
+    "agentdock": "dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli/index.ts",
+    "start": "node dist/cli/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.4"
+  }
+}

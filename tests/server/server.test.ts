@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -6,6 +6,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import { createAgentDockServer } from "../../src/server/server.js";
 import type { StackSkillInstall } from "../../src/core/stackStore.js";
 import type { RestoreCommandRunner } from "../../src/core/skillRestoreExecutor.js";
+import type { SkillRemoveRunner } from "../../src/core/skillRemover.js";
 
 const tempRoots: string[] = [];
 
@@ -32,6 +33,15 @@ async function writeSkill(root: string, dirName: string) {
   );
 }
 
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function withServer<T>(
   skillRoots: string[],
   run: (baseUrl: string) => Promise<T>,
@@ -42,6 +52,7 @@ async function withServer<T>(
     revealStackFile?: (path: string) => Promise<{ revealed?: boolean; unavailable?: boolean; message?: string }>;
     resolveSkillInstall?: () => Promise<StackSkillInstall>;
     restoreRunner?: RestoreCommandRunner;
+    removeSkillRunner?: SkillRemoveRunner;
   } = {}
 ) {
   const server = createAgentDockServer({
@@ -51,6 +62,7 @@ async function withServer<T>(
     chooseStackFile: options.chooseStackFile,
     revealStackFile: options.revealStackFile,
     restoreRunner: options.restoreRunner,
+    removeSkillRunner: options.removeSkillRunner,
     resolveSkillInstall:
       options.resolveSkillInstall ??
       (async () => ({
@@ -296,6 +308,72 @@ describe("AgentDock server", () => {
       },
       { stackPath }
     );
+  });
+
+  test("uninstalls a local skill without removing it from backup", async () => {
+    const root = await makeTempRoot();
+    const stackPath = join(root, ".agentdock", "stack.json");
+    await writeSkill(root, "browser-tools");
+
+    await withServer(
+      [root],
+      async (baseUrl) => {
+        await fetch(`${baseUrl}/api/stack/skills`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            id: "browser-tools",
+            installPath: join(root, "browser-tools"),
+            install: "npx skills add owner/repo --skill browser-tools"
+          })
+        });
+
+        const response = await fetch(`${baseUrl}/api/skills`, {
+          method: "DELETE",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            id: "browser-tools",
+            installPath: join(root, "browser-tools")
+          })
+        });
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.removed).toEqual({
+          removed: true,
+          id: "browser-tools",
+          installPath: join(root, "browser-tools"),
+          method: "filesystem"
+        });
+        expect(payload.skills).toEqual([]);
+        expect(payload.stack.skills).toHaveLength(1);
+        expect(await pathExists(join(root, "browser-tools"))).toBe(false);
+      },
+      { stackPath }
+    );
+  });
+
+  test("does not uninstall a local skill when the install path does not match the scan result", async () => {
+    const root = await makeTempRoot();
+    await writeSkill(root, "browser-tools");
+
+    await withServer([root], async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/skills`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: "browser-tools",
+          installPath: join(root, "not-browser-tools")
+        })
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(payload).toEqual({
+        error: "Skill not found"
+      });
+      expect(await pathExists(join(root, "browser-tools"))).toBe(true);
+    });
   });
 
   test("sets and creates the current stack file path through the API", async () => {
@@ -741,6 +819,40 @@ describe("AgentDock server", () => {
       expect(html).toContain("saveConfirmedSkill(");
       expect(html).toContain("/api/stack/skills/resolve");
       expect(html).not.toContain("saveSkill(button.dataset.id, button.dataset.installPath);");
+    });
+  });
+
+  test("serves local skill uninstall controls inside the installed list", async () => {
+    const root = await makeTempRoot();
+
+    await withServer([root], async (baseUrl) => {
+      const response = await fetch(baseUrl);
+      const html = await response.text();
+      const toolbarHtml = html.slice(html.indexOf('<div class="toolbar">'), html.indexOf('<div class="view-tabs"'));
+      const installedPanelHtml = html.slice(
+        html.indexOf('<section id="installed-panel"'),
+        html.indexOf('<section id="backup-panel"')
+      );
+
+      expect(response.status).toBe(200);
+      expect(toolbarHtml).not.toContain('id="show-delete-controls"');
+      expect(installedPanelHtml).toContain('class="installed-local-tools"');
+      expect(installedPanelHtml).toContain("Local uninstall");
+      expect(installedPanelHtml).toContain('id="show-delete-controls"');
+      expect(html).toContain("Show uninstall");
+      expect(html).toContain("toggleDeleteControls(");
+      expect(html).toContain("showDeleteControls: false");
+      expect(html).toContain("delete-local-skill");
+      expect(html).toContain('id="delete-skill-dialog"');
+      expect(html).toContain("Uninstall skill");
+      expect(html).toContain("This will not remove the skill from Backup.");
+      expect(html).toContain("openDeleteSkillConfirm(");
+      expect(html).toContain("deleteLocalSkill(");
+      expect(html).toContain('fetch("/api/skills", {');
+      expect(html).toContain('method: "DELETE"');
+      expect(html).toContain("<th>Backup</th>");
+      expect(html).toContain("<th>Uninstall</th>");
+      expect(html).not.toContain("<th>Actions</th>");
     });
   });
 

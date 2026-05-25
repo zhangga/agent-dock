@@ -9,6 +9,7 @@ import {
   resolveSkillInstallFromSkillsSh,
   type SkillInstallResolver
 } from "../core/skillInstallResolver.js";
+import { removeInstalledSkill, type SkillRemoveRunner } from "../core/skillRemover.js";
 import { scanInstalledSkills } from "../core/skillScanner.js";
 import {
   buildRestorePlan,
@@ -49,6 +50,7 @@ export interface AgentDockServerOptions {
   revealStackFile?: StackFileRevealer;
   resolveSkillInstall?: SkillInstallResolver;
   restoreRunner?: RestoreCommandRunner;
+  removeSkillRunner?: SkillRemoveRunner;
 }
 
 export function createAgentDockServer(options: AgentDockServerOptions = {}): Server {
@@ -83,6 +85,32 @@ async function handleRequest(
   if (request.method === "GET" && url.pathname === "/api/skills") {
     const skills = await scanInstalledSkills({ roots: options.skillRoots });
     sendJson(response, 200, { skills });
+    return;
+  }
+
+  if (request.method === "DELETE" && url.pathname === "/api/skills") {
+    const body = await readJsonBody(request);
+    const skill = await findInstalledSkillFromBody(body, options);
+
+    if (!skill) {
+      sendJson(response, 404, { error: "Skill not found" });
+      return;
+    }
+
+    try {
+      const removed = await removeInstalledSkill(skill, { runner: options.removeSkillRunner });
+      const stackPath = await resolveStackPath(options);
+      const [skills, stack, stackFile] = await Promise.all([
+        scanInstalledSkills({ roots: options.skillRoots }),
+        readStack({ stackPath }),
+        readStackFileState({ stackPath })
+      ]);
+      sendJson(response, 200, { removed, skills, stack, stackFile });
+    } catch (error) {
+      sendJson(response, 400, {
+        error: error instanceof Error ? error.message : "Could not uninstall skill"
+      });
+    }
     return;
   }
 
