@@ -692,6 +692,8 @@ export function renderConsoleHtml(): string {
           <div class="stack-file-actions">
             <button id="create-stack" class="button" type="button">Create backup file</button>
             <button id="choose-stack-file" class="button secondary" type="button">Choose backup file...</button>
+            <button id="reveal-stack-file" class="button secondary" type="button" disabled>Show file</button>
+            <button id="copy-stack-path" class="button secondary" type="button" disabled>Copy path</button>
             <button id="manual-stack-path" class="button secondary" type="button">Enter path manually</button>
           </div>
           <form id="stack-path-form" class="stack-path-form" hidden>
@@ -786,6 +788,8 @@ export function renderConsoleHtml(): string {
       const stackFileState = document.querySelector("#stack-file-state");
       const createStack = document.querySelector("#create-stack");
       const chooseStackFileButton = document.querySelector("#choose-stack-file");
+      const revealStackFileButton = document.querySelector("#reveal-stack-file");
+      const copyStackPathButton = document.querySelector("#copy-stack-path");
       const manualStackPath = document.querySelector("#manual-stack-path");
       const stackPathForm = document.querySelector("#stack-path-form");
       const stackPathInput = document.querySelector("#stack-path-input");
@@ -979,6 +983,8 @@ export function renderConsoleHtml(): string {
           ? "Ready"
           : "No backup file yet. Create it here or choose a backup file.";
         createStack.hidden = Boolean(state.stackFile.exists);
+        revealStackFileButton.disabled = !state.stackFile.exists;
+        copyStackPathButton.disabled = !state.stackFile.path;
       }
 
       function renderLocation(skill) {
@@ -1261,6 +1267,41 @@ export function renderConsoleHtml(): string {
         render();
       }
 
+      async function revealStackFileLocation() {
+        if (!state.stackFile.exists) {
+          statusLine.textContent = "Create the backup file before opening it";
+          return;
+        }
+
+        statusLine.textContent = "Opening backup file location...";
+        const response = await fetch("/api/stack/reveal", { method: "POST" });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          statusLine.textContent = payload.error || "Could not open backup file location";
+          return;
+        }
+
+        state.stackFile = payload.stackFile || state.stackFile;
+        render();
+        statusLine.textContent = "Backup file location opened";
+      }
+
+      async function copyStackFilePath() {
+        const path = state.stackFile.path || "";
+        if (!path) {
+          statusLine.textContent = "No backup file path to copy";
+          return;
+        }
+
+        if (await copyTextWithFallback(path)) {
+          statusLine.textContent = "Backup file path copied";
+          return;
+        }
+
+        statusLine.textContent = "Could not copy backup file path";
+      }
+
       function showStackPathForm() {
         stackPathForm.hidden = false;
         stackPathInput.value = state.stackFile.path || "";
@@ -1289,14 +1330,25 @@ export function renderConsoleHtml(): string {
           // Fall back to selecting the generated script when clipboard permission is restricted.
         }
 
+        let textarea;
         try {
-          installScript.focus();
-          installScript.select();
+          textarea = document.createElement("textarea");
+          textarea.value = text;
+          textarea.setAttribute("readonly", "");
+          textarea.style.position = "fixed";
+          textarea.style.left = "-9999px";
+          textarea.style.top = "0";
+          document.body.appendChild(textarea);
+          textarea.focus();
+          textarea.select();
           const copied = document.execCommand("copy");
-          installScript.setSelectionRange(0, 0);
           return copied;
         } catch (error) {
           return false;
+        } finally {
+          if (textarea) {
+            textarea.remove();
+          }
         }
       }
 
@@ -1415,6 +1467,8 @@ export function renderConsoleHtml(): string {
       startRestoreButton.addEventListener("click", () => startRestore());
       createStack.addEventListener("click", createStackFile);
       chooseStackFileButton.addEventListener("click", chooseStackFileWithDialog);
+      revealStackFileButton.addEventListener("click", revealStackFileLocation);
+      copyStackPathButton.addEventListener("click", copyStackFilePath);
       manualStackPath.addEventListener("click", () => {
         stackPathForm.hidden = !stackPathForm.hidden;
         if (!stackPathForm.hidden) {

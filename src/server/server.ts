@@ -1,4 +1,9 @@
+import { execFile } from "node:child_process";
+import { access } from "node:fs/promises";
+import { constants } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { dirname } from "node:path";
+import { promisify } from "node:util";
 import { readAgentDockConfig, setConfiguredStackPath } from "../core/configStore.js";
 import {
   resolveSkillInstallFromSkillsSh,
@@ -26,11 +31,22 @@ import {
 } from "../system/stackFilePicker.js";
 import { renderConsoleHtml } from "../ui/page.js";
 
+const execFileAsync = promisify(execFile);
+
+export interface StackFileRevealResult {
+  revealed?: boolean;
+  unavailable?: boolean;
+  message?: string;
+}
+
+export type StackFileRevealer = (path: string) => Promise<StackFileRevealResult>;
+
 export interface AgentDockServerOptions {
   skillRoots?: string[];
   stackPath?: string;
   configPath?: string;
   chooseStackFile?: StackFilePicker;
+  revealStackFile?: StackFileRevealer;
   resolveSkillInstall?: SkillInstallResolver;
   restoreRunner?: RestoreCommandRunner;
 }
@@ -123,6 +139,27 @@ async function handleRequest(
     const stack = await createStackFile({ stackPath: config.stackPath });
     const stackFile = await readStackFileState({ stackPath: config.stackPath });
     sendJson(response, 200, { stack, stackFile });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/stack/reveal") {
+    const stackPath = await resolveStackPath(options);
+    const stackFile = await readStackFileState({ stackPath });
+
+    if (!stackFile.exists) {
+      sendJson(response, 404, { error: "Create the backup file before opening its location." });
+      return;
+    }
+
+    const revealStackFile = options.revealStackFile ?? revealStackFileWithSystem;
+    const result = await revealStackFile(stackFile.path);
+
+    if (result.unavailable) {
+      sendJson(response, 501, { error: result.message ?? "Could not open the backup file location." });
+      return;
+    }
+
+    sendJson(response, 200, { revealed: true, stackFile });
     return;
   }
 
@@ -289,6 +326,37 @@ function toResolvedInstall(command: string): StackSkillInstall {
     command,
     resolvedAt: new Date().toISOString()
   };
+}
+
+async function revealStackFileWithSystem(path: string): Promise<StackFileRevealResult> {
+  try {
+    await access(path, constants.F_OK);
+  } catch {
+    return {
+      unavailable: true,
+      message: "Create the backup file before opening its location."
+    };
+  }
+
+  try {
+    if (process.platform === "darwin") {
+      await execFileAsync("open", ["-R", path], { timeout: 15000 });
+      return { revealed: true };
+    }
+
+    if (process.platform === "win32") {
+      await execFileAsync("explorer.exe", [`/select,${path}`], { timeout: 15000 });
+      return { revealed: true };
+    }
+
+    await execFileAsync("xdg-open", [dirname(path)], { timeout: 15000 });
+    return { revealed: true };
+  } catch {
+    return {
+      unavailable: true,
+      message: "Could not open the backup file location."
+    };
+  }
 }
 
 function sendHtml(response: ServerResponse, html: string): void {

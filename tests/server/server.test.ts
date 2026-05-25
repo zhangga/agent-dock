@@ -39,6 +39,7 @@ async function withServer<T>(
     stackPath?: string;
     configPath?: string;
     chooseStackFile?: () => Promise<{ path?: string; canceled?: boolean }>;
+    revealStackFile?: (path: string) => Promise<{ revealed?: boolean; unavailable?: boolean; message?: string }>;
     resolveSkillInstall?: () => Promise<StackSkillInstall>;
     restoreRunner?: RestoreCommandRunner;
   } = {}
@@ -48,6 +49,7 @@ async function withServer<T>(
     stackPath: options.stackPath,
     configPath: options.configPath,
     chooseStackFile: options.chooseStackFile,
+    revealStackFile: options.revealStackFile,
     restoreRunner: options.restoreRunner,
     resolveSkillInstall:
       options.resolveSkillInstall ??
@@ -427,6 +429,66 @@ describe("AgentDock server", () => {
     );
   });
 
+  test("reveals the current stack file location through the API", async () => {
+    const root = await makeTempRoot();
+    const stackPath = join(root, "portable", "stack.json");
+    const revealedPaths: string[] = [];
+
+    await withServer(
+      [root],
+      async (baseUrl) => {
+        await fetch(`${baseUrl}/api/stack/create`, { method: "POST" });
+
+        const response = await fetch(`${baseUrl}/api/stack/reveal`, { method: "POST" });
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload).toEqual({
+          revealed: true,
+          stackFile: {
+            path: stackPath,
+            exists: true
+          }
+        });
+        expect(revealedPaths).toEqual([stackPath]);
+      },
+      {
+        stackPath,
+        revealStackFile: async (path) => {
+          revealedPaths.push(path);
+          return { revealed: true };
+        }
+      }
+    );
+  });
+
+  test("does not reveal a missing stack file", async () => {
+    const root = await makeTempRoot();
+    const stackPath = join(root, "portable", "stack.json");
+    const revealedPaths: string[] = [];
+
+    await withServer(
+      [root],
+      async (baseUrl) => {
+        const response = await fetch(`${baseUrl}/api/stack/reveal`, { method: "POST" });
+        const payload = await response.json();
+
+        expect(response.status).toBe(404);
+        expect(payload).toEqual({
+          error: "Create the backup file before opening its location."
+        });
+        expect(revealedPaths).toEqual([]);
+      },
+      {
+        stackPath,
+        revealStackFile: async (path) => {
+          revealedPaths.push(path);
+          return { revealed: true };
+        }
+      }
+    );
+  });
+
   test("serves a restore plan for the current backup file", async () => {
     const root = await makeTempRoot();
     const stackPath = join(root, ".agentdock", "stack.json");
@@ -741,7 +803,14 @@ describe("AgentDock server", () => {
       expect(html).toContain("choose-stack-file");
       expect(html).toContain("Choose backup file");
       expect(html).toContain("manual-stack-path");
+      expect(html).toContain("reveal-stack-file");
+      expect(html).toContain("Show file");
+      expect(html).toContain("copy-stack-path");
+      expect(html).toContain("Copy path");
       expect(html).toContain("stack-path-input");
+      expect(html).toContain("revealStackFileLocation(");
+      expect(html).toContain("copyStackFilePath(");
+      expect(html).toContain("/api/stack/reveal");
       expect(html).toContain("/api/stack/choose-file");
       expect(html).toContain("/api/stack/path");
       expect(html).not.toContain("Use another path");
