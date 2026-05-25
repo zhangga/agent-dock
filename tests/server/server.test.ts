@@ -607,7 +607,7 @@ describe("AgentDock server", () => {
     });
   });
 
-  test("serves My Stack and Location UI controls", async () => {
+  test("serves backup contents and location UI controls", async () => {
     const root = await makeTempRoot();
 
     await withServer([root], async (baseUrl) => {
@@ -615,21 +615,20 @@ describe("AgentDock server", () => {
       const html = await response.text();
 
       expect(response.status).toBe(200);
-      expect(html).toContain("My Stack");
-      expect(html).toContain("my-stack-list");
+      expect(html).toContain("Backup Contents");
+      expect(html).toContain("backup-list");
       expect(html).toContain("stack-count");
-      expect(html).toContain("save-skill");
+      expect(html).toContain("add-to-backup");
       expect(html).toContain("remove-stack-skill");
-      expect(html).toContain("renderMyStack(");
-      expect(html).toContain("Install command");
-      expect(html).toContain("renderInstallCommand(");
-      expect(html).toContain("Missing install source");
+      expect(html).toContain("renderBackupContents(");
+      expect(html).toContain("Restore source");
+      expect(html).toContain("This skill does not have a restore source yet.");
       expect(html).toContain("Location");
       expect(html).not.toContain("Source root</th>");
     });
   });
 
-  test("serves install plan and copy script UI controls", async () => {
+  test("serves restore preview and restore controls", async () => {
     const root = await makeTempRoot();
 
     await withServer([root], async (baseUrl) => {
@@ -637,19 +636,25 @@ describe("AgentDock server", () => {
       const html = await response.text();
 
       expect(response.status).toBe(200);
-      expect(html).toContain("Install Plan");
-      expect(html).toContain("install-plan");
-      expect(html).toContain("install-plan-summary");
-      expect(html).toContain("install-script");
+      expect(html).toContain("Restore Preview");
+      expect(html).toContain("restore-preview");
+      expect(html).toContain("restore-preview-summary");
+      expect(html).toContain("restore-results");
+      expect(html).toContain("start-restore");
+      expect(html).toContain("Start restore");
       expect(html).toContain("copy-install-script");
-      expect(html).toContain("Copy install script");
-      expect(html).toContain("renderInstallPlan(");
+      expect(html).toContain("Advanced option");
+      expect(html).toContain("renderRestorePreview(");
       expect(html).toContain("buildInstallScript(");
       expect(html).toContain("copyTextWithFallback(");
+      expect(html).toContain("startRestore(");
+      expect(html).toContain("retryRestore(");
+      expect(html).toContain("saveManualInstallCommand(");
+      expect(html).not.toContain("<h3 id=\"install-plan-heading\">Copy install script</h3>");
     });
   });
 
-  test("serves stack file path and missing-file prompt UI", async () => {
+  test("serves backup file path and missing-file prompt UI", async () => {
     const root = await makeTempRoot();
 
     await withServer([root], async (baseUrl) => {
@@ -657,11 +662,11 @@ describe("AgentDock server", () => {
       const html = await response.text();
 
       expect(response.status).toBe(200);
-      expect(html).toContain("Current stack file");
+      expect(html).toContain("Current backup file");
       expect(html).toContain("stack-file-path");
       expect(html).toContain("create-stack");
       expect(html).toContain("choose-stack-file");
-      expect(html).toContain("Choose stack file");
+      expect(html).toContain("Choose backup file");
       expect(html).toContain("manual-stack-path");
       expect(html).toContain("stack-path-input");
       expect(html).toContain("/api/stack/choose-file");
