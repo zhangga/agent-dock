@@ -1264,7 +1264,7 @@ export function renderConsoleHtml(): string {
       }
 
       function stackSkillKey(skill) {
-        return skill.type + ":" + skill.id;
+        return (skill.type || "skill") + ":" + skill.id;
       }
 
       function escapeHtml(value) {

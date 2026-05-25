@@ -628,6 +628,18 @@ describe("AgentDock server", () => {
     });
   });
 
+  test("matches saved backup entries to installed skill rows", async () => {
+    const root = await makeTempRoot();
+
+    await withServer([root], async (baseUrl) => {
+      const response = await fetch(baseUrl);
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain('return (skill.type || "skill") + ":" + skill.id;');
+    });
+  });
+
   test("serves restore preview and restore controls", async () => {
     const root = await makeTempRoot();
 
