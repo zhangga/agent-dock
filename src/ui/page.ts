@@ -196,6 +196,36 @@ export function renderConsoleHtml(): string {
         flex-wrap: wrap;
       }
 
+      .view-tabs {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 18px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--line);
+        flex-wrap: wrap;
+      }
+
+      .view-tab {
+        min-width: 106px;
+        border: 1px solid var(--line);
+        background: rgba(255, 253, 247, 0.7);
+        color: var(--ink);
+        padding: 10px 13px;
+        cursor: pointer;
+      }
+
+      .view-tab:hover,
+      .view-tab.active {
+        border-color: var(--ink);
+        background: var(--ink);
+        color: var(--paper);
+      }
+
+      .view-panel[hidden] {
+        display: none;
+      }
+
       .search {
         min-width: min(320px, 100%);
         border: 1px solid var(--line);
@@ -705,45 +735,56 @@ export function renderConsoleHtml(): string {
       </aside>
       <main class="main">
         <div class="toolbar">
-          <h2>My Skills</h2>
+          <h2 id="view-title">My Skills</h2>
           <div class="actions">
             <input id="search" class="search" type="search" placeholder="Filter skills" autocomplete="off" />
             <button id="refresh" class="button" type="button">Refresh</button>
           </div>
         </div>
-        <section class="stack-panel" aria-labelledby="backup-heading">
-          <div class="section-head">
-            <div>
-              <p class="kicker">Backup Contents</p>
-              <h3 id="backup-heading">Saved skills</h3>
-            </div>
-            <span id="stack-summary" class="stack-summary">-</span>
-          </div>
-          <div id="backup-list" aria-live="polite"></div>
+        <div class="view-tabs" role="tablist" aria-label="AgentDock sections">
+          <button id="installed-tab" class="view-tab active" role="tab" type="button" aria-selected="true" aria-controls="installed-panel" data-view="installed">Installed</button>
+          <button id="backup-tab" class="view-tab" role="tab" type="button" aria-selected="false" aria-controls="backup-panel" data-view="backup">Backup</button>
+          <button id="restore-tab" class="view-tab" role="tab" type="button" aria-selected="false" aria-controls="restore-panel" data-view="restore">Restore</button>
+        </div>
+        <p id="status-line" class="status-line">Scanning local skill directories...</p>
+        <section id="installed-panel" class="view-panel" role="tabpanel" aria-labelledby="installed-tab" data-view="installed">
+          <section id="skill-list" aria-live="polite"></section>
         </section>
-        <section id="restore-preview" class="restore-preview" aria-labelledby="restore-preview-heading">
-          <div class="section-head">
-            <div>
-              <p class="kicker">Restore Preview</p>
-              <h3 id="restore-preview-heading">Restore missing skills</h3>
+        <section id="backup-panel" class="view-panel" role="tabpanel" aria-labelledby="backup-tab" data-view="backup" hidden>
+          <section class="stack-panel" aria-labelledby="backup-heading">
+            <div class="section-head">
+              <div>
+                <p class="kicker">Backup Contents</p>
+                <h3 id="backup-heading">Saved skills</h3>
+              </div>
+              <span id="stack-summary" class="stack-summary">-</span>
             </div>
-            <span id="restore-preview-summary" class="stack-summary">-</span>
-          </div>
-          <div class="restore-preview-grid">
-            <div id="restore-preview-list" class="restore-preview-list" aria-live="polite"></div>
-            <div class="install-script-box">
-              <textarea id="install-script" class="install-script" readonly spellcheck="false"></textarea>
-              <div class="restore-actions">
-                <button id="start-restore" class="button" type="button" disabled>Start restore</button>
-                <button id="copy-install-script" class="button secondary" type="button" disabled>Copy install script</button>
-                <span class="advanced-option">Advanced option</span>
+            <div id="backup-list" aria-live="polite"></div>
+          </section>
+        </section>
+        <section id="restore-panel" class="view-panel" role="tabpanel" aria-labelledby="restore-tab" data-view="restore" hidden>
+          <section id="restore-preview" class="restore-preview" aria-labelledby="restore-preview-heading">
+            <div class="section-head">
+              <div>
+                <p class="kicker">Restore Preview</p>
+                <h3 id="restore-preview-heading">Restore missing skills</h3>
+              </div>
+              <span id="restore-preview-summary" class="stack-summary">-</span>
+            </div>
+            <div class="restore-preview-grid">
+              <div id="restore-preview-list" class="restore-preview-list" aria-live="polite"></div>
+              <div class="install-script-box">
+                <textarea id="install-script" class="install-script" readonly spellcheck="false"></textarea>
+                <div class="restore-actions">
+                  <button id="start-restore" class="button" type="button" disabled>Start restore</button>
+                  <button id="copy-install-script" class="button secondary" type="button" disabled>Copy install script</button>
+                  <span class="advanced-option">Advanced option</span>
+                </div>
               </div>
             </div>
-          </div>
-          <div id="restore-results" class="restore-results" aria-live="polite"></div>
+            <div id="restore-results" class="restore-results" aria-live="polite"></div>
+          </section>
         </section>
-        <p id="status-line" class="status-line">Scanning local skill directories...</p>
-        <section id="skill-list" aria-live="polite"></section>
       </main>
     </div>
     <dialog id="backup-confirm-dialog" class="backup-confirm-dialog" aria-labelledby="backup-confirm-heading">
@@ -767,7 +808,8 @@ export function renderConsoleHtml(): string {
         stack: { skills: [] },
         stackFile: { path: "", exists: false },
         restoreResults: [],
-        pendingBackup: null
+        pendingBackup: null,
+        activeView: "installed"
       };
       const list = document.querySelector("#skill-list");
       const backupList = document.querySelector("#backup-list");
@@ -781,6 +823,9 @@ export function renderConsoleHtml(): string {
       const statusLine = document.querySelector("#status-line");
       const search = document.querySelector("#search");
       const refresh = document.querySelector("#refresh");
+      const viewTitle = document.querySelector("#view-title");
+      const viewTabs = document.querySelectorAll(".view-tab");
+      const viewPanels = document.querySelectorAll(".view-panel");
       const skillCount = document.querySelector("#skill-count");
       const rootCount = document.querySelector("#root-count");
       const stackCount = document.querySelector("#stack-count");
@@ -847,6 +892,7 @@ export function renderConsoleHtml(): string {
         renderStackFile();
         renderBackupContents(installed, installedById);
         renderRestorePreview(installed);
+        activateView(state.activeView);
         statusLine.textContent = query
           ? filtered.length + " of " + state.skills.length + " skills match"
           : state.skills.length + " installed skills found";
@@ -877,6 +923,29 @@ export function renderConsoleHtml(): string {
           '</table>',
           '</div>'
         ].join("");
+      }
+
+      function activateView(view) {
+        const nextView = ["installed", "backup", "restore"].includes(view) ? view : "installed";
+        state.activeView = nextView;
+        const titles = {
+          installed: "My Skills",
+          backup: "Backup",
+          restore: "Restore"
+        };
+
+        viewTitle.textContent = titles[nextView] || "My Skills";
+        search.hidden = nextView !== "installed";
+
+        viewTabs.forEach((tab) => {
+          const isActive = tab.dataset.view === nextView;
+          tab.classList.toggle("active", isActive);
+          tab.setAttribute("aria-selected", isActive ? "true" : "false");
+        });
+
+        viewPanels.forEach((panel) => {
+          panel.hidden = panel.dataset.view !== nextView;
+        });
       }
 
       function renderBackupContents(installed, installedById) {
@@ -1463,6 +1532,9 @@ export function renderConsoleHtml(): string {
 
       refresh.addEventListener("click", loadSkills);
       search.addEventListener("input", render);
+      viewTabs.forEach((tab) => {
+        tab.addEventListener("click", () => activateView(tab.dataset.view));
+      });
       copyInstallScript.addEventListener("click", copyInstallScriptText);
       startRestoreButton.addEventListener("click", () => startRestore());
       createStack.addEventListener("click", createStackFile);

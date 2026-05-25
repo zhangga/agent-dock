@@ -683,6 +683,26 @@ describe("AgentDock server", () => {
     });
   });
 
+  test("serves tabbed sections with installed as the default view", async () => {
+    const root = await makeTempRoot();
+
+    await withServer([root], async (baseUrl) => {
+      const response = await fetch(baseUrl);
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain('class="view-tabs" role="tablist"');
+      expect(html).toContain('id="installed-tab" class="view-tab active" role="tab" type="button" aria-selected="true" aria-controls="installed-panel" data-view="installed"');
+      expect(html).toContain('id="backup-tab" class="view-tab" role="tab" type="button" aria-selected="false" aria-controls="backup-panel" data-view="backup"');
+      expect(html).toContain('id="restore-tab" class="view-tab" role="tab" type="button" aria-selected="false" aria-controls="restore-panel" data-view="restore"');
+      expect(html).toContain('id="installed-panel" class="view-panel" role="tabpanel" aria-labelledby="installed-tab" data-view="installed"');
+      expect(html).toContain('id="backup-panel" class="view-panel" role="tabpanel" aria-labelledby="backup-tab" data-view="backup" hidden');
+      expect(html).toContain('id="restore-panel" class="view-panel" role="tabpanel" aria-labelledby="restore-tab" data-view="restore" hidden');
+      expect(html).toContain("activateView(");
+      expect(html).toContain("viewTabs.forEach");
+    });
+  });
+
   test("serves backup contents and location UI controls", async () => {
     const root = await makeTempRoot();
 
