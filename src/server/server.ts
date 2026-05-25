@@ -5,6 +5,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { dirname } from "node:path";
 import { promisify } from "node:util";
 import { readAgentDockConfig, setConfiguredStackPath } from "../core/configStore.js";
+import { runDiagnostics, summarizeDiagnostics, type RunDiagnosticsOptions } from "../core/diagnostics.js";
 import {
   resolveSkillInstallFromSkillsSh,
   type SkillInstallResolver
@@ -51,6 +52,7 @@ export interface AgentDockServerOptions {
   resolveSkillInstall?: SkillInstallResolver;
   restoreRunner?: RestoreCommandRunner;
   removeSkillRunner?: SkillRemoveRunner;
+  diagnostics?: RunDiagnosticsOptions;
 }
 
 export function createAgentDockServer(options: AgentDockServerOptions = {}): Server {
@@ -320,6 +322,21 @@ async function handleRequest(
 
     const stackFile = await readStackFileState({ stackPath });
     sendJson(response, 200, { stack, stackFile });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/diagnostics") {
+    const stackPath = await resolveStackPath(options);
+    const checks = await runDiagnostics({
+      ...options.diagnostics,
+      stackPath,
+      skillRoots: options.skillRoots ?? options.diagnostics?.skillRoots
+    });
+
+    sendJson(response, 200, {
+      checks,
+      summary: summarizeDiagnostics(checks)
+    });
     return;
   }
 

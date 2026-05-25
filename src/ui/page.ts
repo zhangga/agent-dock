@@ -648,6 +648,83 @@ export function renderConsoleHtml(): string {
         font-size: 13px;
       }
 
+      .diagnostics-panel {
+        margin-top: 24px;
+      }
+
+      .diagnostics-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .diagnostic-check {
+        display: grid;
+        grid-template-columns: minmax(140px, 0.24fr) minmax(0, 1fr);
+        gap: 12px;
+        border: 1px solid var(--line);
+        border-left: 4px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.92);
+        padding: 12px 14px;
+      }
+
+      .diagnostic-check.ok {
+        border-left-color: var(--success);
+      }
+
+      .diagnostic-check.warning {
+        border-left-color: #a15c00;
+      }
+
+      .diagnostic-check.error {
+        border-left-color: var(--accent-2);
+      }
+
+      .diagnostic-label {
+        font-weight: 700;
+        overflow-wrap: anywhere;
+      }
+
+      .diagnostic-status {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        margin-top: 6px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 3px 8px;
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      .diagnostic-status.ok {
+        border-color: rgba(11, 93, 85, 0.28);
+        color: var(--success);
+      }
+
+      .diagnostic-status.warning {
+        border-color: rgba(161, 92, 0, 0.28);
+        color: #7a4600;
+      }
+
+      .diagnostic-status.error {
+        border-color: rgba(180, 35, 24, 0.24);
+        color: var(--accent-2);
+      }
+
+      .diagnostic-message {
+        color: var(--ink);
+      }
+
+      .diagnostic-detail {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 13px;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
       .manual-command-form {
         display: grid;
         gap: 8px;
@@ -880,7 +957,8 @@ export function renderConsoleHtml(): string {
         }
 
         .restore-preview-grid,
-        .install-script-box {
+        .install-script-box,
+        .diagnostic-check {
           grid-template-columns: 1fr;
         }
 
@@ -1081,6 +1159,21 @@ export function renderConsoleHtml(): string {
             </div>
             <div id="restore-results" class="restore-results" aria-live="polite"></div>
           </section>
+          <section id="diagnostics-panel" class="diagnostics-panel" aria-labelledby="diagnostics-heading">
+            <div class="section-head">
+              <div>
+                <p class="kicker">Diagnostics</p>
+                <h3 id="diagnostics-heading">Restore health check</h3>
+              </div>
+              <div class="restore-actions">
+                <span id="diagnostics-summary" class="stack-summary">Not checked yet</span>
+                <button id="run-diagnostics" class="button secondary" type="button">Run diagnostics</button>
+              </div>
+            </div>
+            <div id="diagnostics-list" class="diagnostics-list" aria-live="polite">
+              <div class="stack-empty"><strong>Diagnostics not run yet</strong><span>Run checks when restore fails or before moving a backup to another machine.</span></div>
+            </div>
+          </section>
         </section>
       </main>
     </div>
@@ -1118,6 +1211,7 @@ export function renderConsoleHtml(): string {
         skills: [],
         stack: { skills: [] },
         stackFile: { path: "", exists: false },
+        diagnostics: { checks: [], summary: { ok: 0, warning: 0, error: 0 }, loaded: false, loading: false },
         restoreResults: [],
         pendingBackup: null,
         pendingDelete: null,
@@ -1133,6 +1227,9 @@ export function renderConsoleHtml(): string {
       const installScript = document.querySelector("#install-script");
       const copyInstallScript = document.querySelector("#copy-install-script");
       const startRestoreButton = document.querySelector("#start-restore");
+      const diagnosticsSummary = document.querySelector("#diagnostics-summary");
+      const diagnosticsList = document.querySelector("#diagnostics-list");
+      const runDiagnosticsButton = document.querySelector("#run-diagnostics");
       const statusLine = document.querySelector("#status-line");
       const search = document.querySelector("#search");
       const searchWrap = document.querySelector("#search-wrap");
@@ -1217,6 +1314,7 @@ export function renderConsoleHtml(): string {
         renderStackFile();
         renderBackupContents(installed, installedById);
         renderRestorePreview(installed);
+        renderDiagnostics();
         activateView(state.activeView);
         statusLine.textContent = getActiveStatusLine(filtered);
 
@@ -1919,6 +2017,100 @@ export function renderConsoleHtml(): string {
         ].join("");
       }
 
+      async function runDiagnostics() {
+        state.diagnostics.loading = true;
+        runDiagnosticsButton.disabled = true;
+        statusLine.textContent = "Running diagnostics...";
+        renderDiagnostics();
+
+        const response = await fetch("/api/diagnostics");
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          state.diagnostics = {
+            checks: [
+              {
+                id: "diagnostics.request",
+                label: "Diagnostics",
+                status: "error",
+                message: payload.error || "Could not run diagnostics."
+              }
+            ],
+            summary: { ok: 0, warning: 0, error: 1 },
+            loaded: true,
+            loading: false
+          };
+          runDiagnosticsButton.disabled = false;
+          statusLine.textContent = "Diagnostics failed";
+          renderDiagnostics();
+          return;
+        }
+
+        state.diagnostics = {
+          checks: payload.checks || [],
+          summary: payload.summary || { ok: 0, warning: 0, error: 0 },
+          loaded: true,
+          loading: false
+        };
+        runDiagnosticsButton.disabled = false;
+        statusLine.textContent = getDiagnosticsSummaryText(state.diagnostics.summary);
+        renderDiagnostics();
+      }
+
+      function renderDiagnostics() {
+        const diagnostics = state.diagnostics || { checks: [], summary: { ok: 0, warning: 0, error: 0 }, loaded: false, loading: false };
+        runDiagnosticsButton.disabled = Boolean(diagnostics.loading);
+
+        if (diagnostics.loading) {
+          diagnosticsSummary.textContent = "Checking...";
+          diagnosticsList.innerHTML = '<div class="stack-empty"><strong>Running diagnostics</strong><span>Checking local tools, network access, backup file, and skill roots.</span></div>';
+          return;
+        }
+
+        if (!diagnostics.loaded) {
+          diagnosticsSummary.textContent = "Not checked yet";
+          diagnosticsList.innerHTML = '<div class="stack-empty"><strong>Diagnostics not run yet</strong><span>Run checks when restore fails or before moving a backup to another machine.</span></div>';
+          return;
+        }
+
+        diagnosticsSummary.textContent = getDiagnosticsSummaryText(diagnostics.summary);
+        diagnosticsList.innerHTML = diagnostics.checks.length
+          ? diagnostics.checks.map(renderDiagnosticCheck).join("")
+          : '<div class="stack-empty"><strong>No diagnostics returned</strong><span>Try running diagnostics again.</span></div>';
+      }
+
+      function renderDiagnosticCheck(check) {
+        const status = String(check.status || "warning");
+        return [
+          '<div class="diagnostic-check ' + escapeHtml(status) + '">',
+          '<div>',
+          '<div class="diagnostic-label">' + escapeHtml(check.label || check.id || "Check") + '</div>',
+          '<span class="diagnostic-status ' + escapeHtml(status) + '">' + escapeHtml(status) + '</span>',
+          '</div>',
+          '<div>',
+          '<div class="diagnostic-message">' + escapeHtml(check.message || "") + '</div>',
+          check.detail ? '<div class="diagnostic-detail">' + escapeHtml(check.detail) + '</div>' : "",
+          '</div>',
+          '</div>'
+        ].join("");
+      }
+
+      function getDiagnosticsSummaryText(summary) {
+        const errors = Number(summary && summary.error ? summary.error : 0);
+        const warnings = Number(summary && summary.warning ? summary.warning : 0);
+        const ok = Number(summary && summary.ok ? summary.ok : 0);
+
+        if (errors > 0) {
+          return errors + " issue" + (errors === 1 ? "" : "s") + " found";
+        }
+
+        if (warnings > 0) {
+          return warnings + " warning" + (warnings === 1 ? "" : "s");
+        }
+
+        return ok > 0 ? "All checks passed" : "Not checked yet";
+      }
+
       async function saveManualInstallCommand(id, install) {
         const command = String(install || "").trim();
         if (!command) {
@@ -1986,6 +2178,7 @@ export function renderConsoleHtml(): string {
       });
       copyInstallScript.addEventListener("click", copyInstallScriptText);
       startRestoreButton.addEventListener("click", () => startRestore());
+      runDiagnosticsButton.addEventListener("click", runDiagnostics);
       createStack.addEventListener("click", createStackFile);
       chooseStackFileButton.addEventListener("click", chooseStackFileWithDialog);
       revealStackFileButton.addEventListener("click", revealStackFileLocation);

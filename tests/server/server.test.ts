@@ -7,6 +7,7 @@ import { createAgentDockServer } from "../../src/server/server.js";
 import type { StackSkillInstall } from "../../src/core/stackStore.js";
 import type { RestoreCommandRunner } from "../../src/core/skillRestoreExecutor.js";
 import type { SkillRemoveRunner } from "../../src/core/skillRemover.js";
+import type { RunDiagnosticsOptions } from "../../src/core/diagnostics.js";
 
 const tempRoots: string[] = [];
 
@@ -53,6 +54,7 @@ async function withServer<T>(
     resolveSkillInstall?: () => Promise<StackSkillInstall>;
     restoreRunner?: RestoreCommandRunner;
     removeSkillRunner?: SkillRemoveRunner;
+    diagnostics?: RunDiagnosticsOptions;
   } = {}
 ) {
   const server = createAgentDockServer({
@@ -63,6 +65,7 @@ async function withServer<T>(
     revealStackFile: options.revealStackFile,
     restoreRunner: options.restoreRunner,
     removeSkillRunner: options.removeSkillRunner,
+    diagnostics: options.diagnostics,
     resolveSkillInstall:
       options.resolveSkillInstall ??
       (async () => ({
@@ -977,6 +980,25 @@ describe("AgentDock server", () => {
     });
   });
 
+  test("serves diagnostics controls inside the restore view", async () => {
+    const root = await makeTempRoot();
+
+    await withServer([root], async (baseUrl) => {
+      const response = await fetch(baseUrl);
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain("Diagnostics");
+      expect(html).toContain('id="diagnostics-panel"');
+      expect(html).toContain('id="diagnostics-summary"');
+      expect(html).toContain('id="diagnostics-list"');
+      expect(html).toContain('id="run-diagnostics"');
+      expect(html).toContain("renderDiagnostics(");
+      expect(html).toContain("runDiagnostics(");
+      expect(html).toContain('fetch("/api/diagnostics")');
+    });
+  });
+
   test("serves backup file path and missing-file prompt UI", async () => {
     const root = await makeTempRoot();
 
@@ -1014,5 +1036,46 @@ describe("AgentDock server", () => {
 
       expect(response.status).toBe(204);
     });
+  });
+
+  test("serves diagnostics for restore prerequisites", async () => {
+    const root = await makeTempRoot();
+    const stackPath = join(root, ".agentdock", "stack.json");
+    await mkdir(join(root, ".agentdock"), { recursive: true });
+    await writeFile(stackPath, JSON.stringify({ schemaVersion: 1, skills: [] }), "utf8");
+
+    await withServer(
+      [root],
+      async (baseUrl) => {
+        const response = await fetch(`${baseUrl}/api/diagnostics`);
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.summary).toEqual({
+          ok: 8,
+          warning: 0,
+          error: 0
+        });
+        expect(payload.checks.map((check: { id: string }) => check.id)).toContain("runtime.npx");
+        expect(payload.checks.map((check: { id: string }) => check.id)).toContain("stack.file");
+      },
+      {
+        stackPath,
+        diagnostics: {
+          nodeVersion: "v20.0.0",
+          commandRunner: async (command) => ({
+            exitCode: 0,
+            stdout: command === "git" ? "git version 2.0.0" : "10.0.0",
+            stderr: ""
+          }),
+          fetcher: async () => ({
+            ok: true,
+            status: 200
+          }),
+          pathExists: async () => true,
+          canWritePath: async () => true
+        }
+      }
+    );
   });
 });
