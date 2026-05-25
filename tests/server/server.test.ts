@@ -653,6 +653,20 @@ describe("AgentDock server", () => {
     });
   });
 
+  test("does not show local install paths in saved skills rows", async () => {
+    const root = await makeTempRoot();
+
+    await withServer([root], async (baseUrl) => {
+      const response = await fetch(baseUrl);
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain("<thead><tr><th>Name</th><th>Status</th><th>Restore source</th><th>Location</th><th></th></tr></thead>");
+      expect(html).not.toContain("<thead><tr><th>Name</th><th>Status</th><th>Restore source</th><th>Location</th><th>Install path</th><th></th></tr></thead>");
+      expect(html).not.toContain("renderCurrentInstallPath(");
+    });
+  });
+
   test("serves restore preview and restore controls", async () => {
     const root = await makeTempRoot();
 

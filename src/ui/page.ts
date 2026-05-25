@@ -806,7 +806,7 @@ export function renderConsoleHtml(): string {
         backupList.innerHTML = [
           '<div class="table-wrap">',
           '<table>',
-          '<thead><tr><th>Name</th><th>Status</th><th>Restore source</th><th>Location</th><th>Install path</th><th></th></tr></thead>',
+          '<thead><tr><th>Name</th><th>Status</th><th>Restore source</th><th>Location</th><th></th></tr></thead>',
           '<tbody>',
           ...stackSkills.map((skill) => {
             const isInstalled = installed.has(installedSkillKey(skill));
@@ -817,7 +817,6 @@ export function renderConsoleHtml(): string {
               '<td>' + renderStackStatus(isInstalled) + '</td>',
               '<td>' + renderRestoreSource(skill) + renderManualCommandForm(skill) + '</td>',
               '<td>' + renderStackLocation(currentSkill) + '</td>',
-              '<td>' + renderCurrentInstallPath(currentSkill) + '</td>',
               '<td><button class="remove-stack-skill" type="button" data-id="' + escapeHtml(skill.id) + '">Remove</button></td>',
               '</tr>'
             ].join("");
@@ -909,14 +908,6 @@ export function renderConsoleHtml(): string {
         }
 
         return renderLocation(currentSkill);
-      }
-
-      function renderCurrentInstallPath(currentSkill) {
-        if (!currentSkill) {
-          return '<span class="install-missing">-</span>';
-        }
-
-        return '<code>' + escapeHtml(currentSkill.installPath) + '</code>';
       }
 
       function renderStackStatus(isInstalled) {
