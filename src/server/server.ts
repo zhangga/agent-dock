@@ -17,7 +17,8 @@ import {
   readStack,
   readStackFileState,
   removeSkillFromStack,
-  updateSkillSourceInStack
+  updateSkillSourceInStack,
+  type StackSkillInstall
 } from "../core/stackStore.js";
 import {
   chooseStackFileWithSystemPicker,
@@ -125,10 +126,44 @@ async function handleRequest(
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/api/stack/skills/resolve") {
+    const body = await readJsonBody(request);
+    const skill = await findInstalledSkillFromBody(body, options);
+
+    if (!skill) {
+      sendJson(response, 404, { error: "Skill not found" });
+      return;
+    }
+
+    const resolveSkillInstall = options.resolveSkillInstall ?? resolveSkillInstallFromSkillsSh;
+    const install = await resolveSkillInstall(skill);
+    sendJson(response, 200, {
+      skill: {
+        id: skill.id,
+        name: skill.name
+      },
+      install,
+      command: install.status === "resolved" ? install.command : ""
+    });
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/api/stack/skills") {
     const body = await readJsonBody(request);
-    const skills = await scanInstalledSkills({ roots: options.skillRoots });
-    const skill = skills.find((item) => item.id === body.id && item.installPath === body.installPath);
+    const installCommand = typeof body.install === "string" ? body.install.trim() : "";
+
+    if (!installCommand) {
+      sendJson(response, 400, { error: "Install command is required before a skill can be saved to backup." });
+      return;
+    }
+
+    const parsedCommand = parseInstallCommand(installCommand);
+    if (!parsedCommand) {
+      sendJson(response, 400, { error: "Only npx skills add ... commands are supported right now." });
+      return;
+    }
+
+    const skill = await findInstalledSkillFromBody(body, options);
 
     if (!skill) {
       sendJson(response, 404, { error: "Skill not found" });
@@ -136,8 +171,7 @@ async function handleRequest(
     }
 
     const stackPath = await resolveStackPath(options);
-    const resolveSkillInstall = options.resolveSkillInstall ?? resolveSkillInstallFromSkillsSh;
-    const install = await resolveSkillInstall(skill);
+    const install = toResolvedInstall(parsedCommand.display);
     const stack = await addSkillToStack(skill, { stackPath, install });
     const stackFile = await readStackFileState({ stackPath });
     sendJson(response, 200, { stack, stackFile });
@@ -239,6 +273,22 @@ async function resolveStackPath(options: AgentDockServerOptions): Promise<string
 
   const config = await readAgentDockConfig({ configPath: options.configPath });
   return config.stackPath;
+}
+
+async function findInstalledSkillFromBody(body: Record<string, unknown>, options: AgentDockServerOptions) {
+  const id = typeof body.id === "string" ? body.id : "";
+  const installPath = typeof body.installPath === "string" ? body.installPath : "";
+  const skills = await scanInstalledSkills({ roots: options.skillRoots });
+  return skills.find((item) => item.id === id && item.installPath === installPath);
+}
+
+function toResolvedInstall(command: string): StackSkillInstall {
+  return {
+    status: "resolved",
+    source: "skills.sh",
+    command,
+    resolvedAt: new Date().toISOString()
+  };
 }
 
 function sendHtml(response: ServerResponse, html: string): void {

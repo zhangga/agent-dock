@@ -152,7 +152,7 @@ describe("AgentDock server", () => {
     );
   });
 
-  test("saves an installed skill into the stack", async () => {
+  test("does not save an installed skill without an install command", async () => {
     const root = await makeTempRoot();
     const stackPath = join(root, ".agentdock", "stack.json");
     await writeSkill(root, "browser-tools");
@@ -170,19 +170,56 @@ describe("AgentDock server", () => {
         });
         const payload = await response.json();
 
-        expect(response.status).toBe(200);
-        expect(payload.stack.skills).toEqual([
-          {
-            id: "browser-tools",
-            type: "skill",
-            source: {
-              type: "unknown"
-            },
-            desiredState: "enabled"
-          }
-        ]);
+        expect(response.status).toBe(400);
+        expect(payload).toEqual({
+          error: "Install command is required before a skill can be saved to backup."
+        });
+
+        const stackResponse = await fetch(`${baseUrl}/api/stack`);
+        const stackPayload = await stackResponse.json();
+        expect(stackPayload.stack.skills).toEqual([]);
       },
       { stackPath }
+    );
+  });
+
+  test("resolves a skill install command without saving it", async () => {
+    const root = await makeTempRoot();
+    const stackPath = join(root, ".agentdock", "stack.json");
+    await writeSkill(root, "find-skills");
+
+    await withServer(
+      [root],
+      async (baseUrl) => {
+        const response = await fetch(`${baseUrl}/api/stack/skills/resolve`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            id: "find-skills",
+            installPath: join(root, "find-skills")
+          })
+        });
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.command).toBe("npx skills add https://github.com/vercel-labs/skills --skill find-skills");
+        expect(payload.install.status).toBe("resolved");
+
+        const stackResponse = await fetch(`${baseUrl}/api/stack`);
+        const stackPayload = await stackResponse.json();
+        expect(stackPayload.stack.skills).toEqual([]);
+      },
+      {
+        stackPath,
+        resolveSkillInstall: async () => ({
+          status: "resolved",
+          source: "skills.sh",
+          command: "npx skills add https://github.com/vercel-labs/skills --skill find-skills",
+          url: "https://skills.sh/vercel-labs/skills/find-skills",
+          packageName: "vercel-labs/skills@find-skills",
+          resolvedAt: "2026-05-25T00:00:00.000Z"
+        })
+      }
     );
   });
 
@@ -199,7 +236,8 @@ describe("AgentDock server", () => {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             id: "find-skills",
-            installPath: join(root, "find-skills")
+            installPath: join(root, "find-skills"),
+            install: "npx skills add https://github.com/vercel-labs/skills --skill find-skills"
           })
         });
         const payload = await response.json();
@@ -216,17 +254,7 @@ describe("AgentDock server", () => {
           desiredState: "enabled"
         });
       },
-      {
-        stackPath,
-        resolveSkillInstall: async () => ({
-          status: "resolved",
-          source: "skills.sh",
-          command: "npx skills add https://github.com/vercel-labs/skills --skill find-skills",
-          url: "https://skills.sh/vercel-labs/skills/find-skills",
-          packageName: "vercel-labs/skills@find-skills",
-          resolvedAt: "2026-05-25T00:00:00.000Z"
-        })
-      }
+      { stackPath }
     );
   });
 
@@ -243,7 +271,8 @@ describe("AgentDock server", () => {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             id: "browser-tools",
-            installPath: join(root, "browser-tools")
+            installPath: join(root, "browser-tools"),
+            install: "npx skills add owner/repo --skill browser-tools"
           })
         });
 
@@ -412,7 +441,8 @@ describe("AgentDock server", () => {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             id: "already-here",
-            installPath: join(root, "already-here")
+            installPath: join(root, "already-here"),
+            install: "npx skills add owner/repo --skill already-here"
           })
         });
 
@@ -505,7 +535,7 @@ describe("AgentDock server", () => {
     );
   });
 
-  test("saves a manual install command source through the API", async () => {
+  test("saves a manual install command source while adding a skill", async () => {
     const root = await makeTempRoot();
     const stackPath = join(root, ".agentdock", "stack.json");
     await writeSkill(root, "local-only");
@@ -513,20 +543,12 @@ describe("AgentDock server", () => {
     await withServer(
       [root],
       async (baseUrl) => {
-        await fetch(`${baseUrl}/api/stack/skills`, {
+        const response = await fetch(`${baseUrl}/api/stack/skills`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             id: "local-only",
-            installPath: join(root, "local-only")
-          })
-        });
-
-        const response = await fetch(`${baseUrl}/api/stack/skills/source`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            id: "local-only",
+            installPath: join(root, "local-only"),
             install: "npx skills add owner/repo --skill local-only"
           })
         });
@@ -542,7 +564,7 @@ describe("AgentDock server", () => {
     );
   });
 
-  test("rejects unsupported manual install commands", async () => {
+  test("rejects unsupported install commands when adding a skill", async () => {
     const root = await makeTempRoot();
     const stackPath = join(root, ".agentdock", "stack.json");
     await writeSkill(root, "local-only");
@@ -550,20 +572,12 @@ describe("AgentDock server", () => {
     await withServer(
       [root],
       async (baseUrl) => {
-        await fetch(`${baseUrl}/api/stack/skills`, {
+        const response = await fetch(`${baseUrl}/api/stack/skills`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             id: "local-only",
-            installPath: join(root, "local-only")
-          })
-        });
-
-        const response = await fetch(`${baseUrl}/api/stack/skills/source`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            id: "local-only",
+            installPath: join(root, "local-only"),
             install: "npx skills add owner/repo --skill local-only && rm -rf /"
           })
         });
@@ -625,6 +639,26 @@ describe("AgentDock server", () => {
       expect(html).toContain("This skill does not have a restore source yet.");
       expect(html).toContain("Location");
       expect(html).not.toContain("Source root</th>");
+    });
+  });
+
+  test("serves backup command confirmation UI", async () => {
+    const root = await makeTempRoot();
+
+    await withServer([root], async (baseUrl) => {
+      const response = await fetch(baseUrl);
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain('id="backup-confirm-dialog"');
+      expect(html).toContain("Confirm backup command");
+      expect(html).toContain("backup-command-input");
+      expect(html).toContain("backup-confirm-message");
+      expect(html).toContain("resolveSkillBeforeBackup(");
+      expect(html).toContain("openBackupConfirm(");
+      expect(html).toContain("saveConfirmedSkill(");
+      expect(html).toContain("/api/stack/skills/resolve");
+      expect(html).not.toContain("saveSkill(button.dataset.id, button.dataset.installPath);");
     });
   });
 

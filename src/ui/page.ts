@@ -507,6 +507,68 @@ export function renderConsoleHtml(): string {
         border-color: var(--accent);
       }
 
+      .backup-confirm-dialog {
+        width: min(640px, calc(100vw - 32px));
+        border: 1px solid var(--ink);
+        padding: 0;
+        color: var(--ink);
+        background: var(--paper);
+        box-shadow: var(--shadow);
+      }
+
+      .backup-confirm-dialog::backdrop {
+        background: rgba(25, 32, 29, 0.28);
+      }
+
+      .backup-confirm-form {
+        display: grid;
+        gap: 14px;
+        padding: 22px;
+      }
+
+      .backup-confirm-form h3 {
+        font-size: 24px;
+        line-height: 1.08;
+      }
+
+      .backup-confirm-message,
+      .backup-command-help {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .backup-command-label {
+        display: grid;
+        gap: 7px;
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      .backup-command-input {
+        width: 100%;
+        border: 1px solid var(--line);
+        background: rgba(255, 253, 247, 0.92);
+        color: var(--ink);
+        padding: 10px 11px;
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        outline: none;
+      }
+
+      .backup-command-input:focus {
+        border-color: var(--accent);
+      }
+
+      .dialog-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
       .add-to-backup,
       .remove-stack-skill,
       .retry-restore {
@@ -682,12 +744,28 @@ export function renderConsoleHtml(): string {
         <section id="skill-list" aria-live="polite"></section>
       </main>
     </div>
+    <dialog id="backup-confirm-dialog" class="backup-confirm-dialog" aria-labelledby="backup-confirm-heading">
+      <form id="backup-confirm-form" class="backup-confirm-form">
+        <h3 id="backup-confirm-heading">Confirm backup command</h3>
+        <p id="backup-confirm-message" class="backup-confirm-message">Review the install command before this skill is saved.</p>
+        <label class="backup-command-label" for="backup-command-input">
+          Install command
+          <input id="backup-command-input" class="backup-command-input" type="text" autocomplete="off" placeholder="npx skills add https://github.com/owner/repo --skill skill-name" />
+        </label>
+        <p id="backup-command-help" class="backup-command-help">This backup needs an install command before it can be saved.</p>
+        <div class="dialog-actions">
+          <button id="cancel-backup-confirm" class="button secondary" type="button">Cancel</button>
+          <button id="confirm-backup-save" class="button" type="submit">Save to backup</button>
+        </div>
+      </form>
+    </dialog>
     <script>
       const state = {
         skills: [],
         stack: { skills: [] },
         stackFile: { path: "", exists: false },
-        restoreResults: []
+        restoreResults: [],
+        pendingBackup: null
       };
       const list = document.querySelector("#skill-list");
       const backupList = document.querySelector("#backup-list");
@@ -711,6 +789,12 @@ export function renderConsoleHtml(): string {
       const manualStackPath = document.querySelector("#manual-stack-path");
       const stackPathForm = document.querySelector("#stack-path-form");
       const stackPathInput = document.querySelector("#stack-path-input");
+      const backupConfirmDialog = document.querySelector("#backup-confirm-dialog");
+      const backupConfirmForm = document.querySelector("#backup-confirm-form");
+      const backupConfirmMessage = document.querySelector("#backup-confirm-message");
+      const backupCommandInput = document.querySelector("#backup-command-input");
+      const backupCommandHelp = document.querySelector("#backup-command-help");
+      const cancelBackupConfirm = document.querySelector("#cancel-backup-confirm");
 
       async function loadSkills() {
         statusLine.textContent = "Scanning local skill directories...";
@@ -990,22 +1074,102 @@ export function renderConsoleHtml(): string {
         return compact.length > maxLength ? compact.slice(0, maxLength).trimEnd() + "..." : compact;
       }
 
-      async function saveSkill(id, installPath) {
-        statusLine.textContent = "Adding skill to backup and finding restore source...";
-        const response = await fetch("/api/stack/skills", {
+      async function resolveSkillBeforeBackup(id, installPath, button) {
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = "Checking...";
+        statusLine.textContent = "Finding restore source before saving...";
+
+        const response = await fetch("/api/stack/skills/resolve", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ id, installPath })
         });
+        const payload = await response.json().catch(() => ({}));
 
         if (!response.ok) {
-          statusLine.textContent = "Could not add skill to backup";
+          statusLine.textContent = payload.error || "Could not check restore source";
+          button.disabled = false;
+          button.textContent = originalText;
           return;
         }
 
-        const payload = await response.json();
+        openBackupConfirm({
+          id,
+          installPath,
+          name: payload.skill && payload.skill.name ? payload.skill.name : id,
+          command: payload.command || "",
+          reason: payload.install && payload.install.reason ? payload.install.reason : ""
+        });
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+
+      function openBackupConfirm(pendingBackup) {
+        state.pendingBackup = {
+          id: pendingBackup.id,
+          installPath: pendingBackup.installPath
+        };
+        backupCommandInput.value = pendingBackup.command || "";
+
+        if (pendingBackup.command) {
+          backupConfirmMessage.textContent = "AgentDock found a restore command for " + pendingBackup.name + ". Review it before saving.";
+          backupCommandHelp.textContent = "This command will be used to install the skill on another computer.";
+        } else {
+          backupConfirmMessage.textContent = "AgentDock could not find a matching skills.sh entry for " + pendingBackup.name + ".";
+          backupCommandHelp.textContent = pendingBackup.reason || "Paste a npx skills add command before this skill can be saved.";
+        }
+
+        statusLine.textContent = pendingBackup.command
+          ? "Review install command before saving"
+          : "Enter an install command before saving";
+
+        if (typeof backupConfirmDialog.showModal === "function") {
+          backupConfirmDialog.showModal();
+        } else {
+          backupConfirmDialog.setAttribute("open", "");
+        }
+
+        backupCommandInput.focus();
+        backupCommandInput.select();
+      }
+
+      function closeBackupConfirm() {
+        state.pendingBackup = null;
+        backupCommandInput.value = "";
+        if (backupConfirmDialog.open && typeof backupConfirmDialog.close === "function") {
+          backupConfirmDialog.close();
+        } else {
+          backupConfirmDialog.removeAttribute("open");
+        }
+      }
+
+      async function saveConfirmedSkill(id, installPath, install) {
+        const command = String(install || "").trim();
+        if (!command) {
+          statusLine.textContent = "Enter an install command before saving";
+          backupCommandInput.focus();
+          return;
+        }
+
+        statusLine.textContent = "Saving skill to backup...";
+        const response = await fetch("/api/stack/skills", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id, installPath, install: command })
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          statusLine.textContent = payload.error || "Could not add skill to backup";
+          backupCommandInput.focus();
+          return;
+        }
+
         state.stack = payload.stack || state.stack;
         state.stackFile = payload.stackFile || state.stackFile;
+        closeBackupConfirm();
+        statusLine.textContent = "Skill saved to backup";
         render();
       }
 
@@ -1261,10 +1425,19 @@ export function renderConsoleHtml(): string {
         event.preventDefault();
         setStackPath(stackPathInput.value);
       });
+      backupConfirmForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (!state.pendingBackup) return;
+        saveConfirmedSkill(state.pendingBackup.id, state.pendingBackup.installPath, backupCommandInput.value);
+      });
+      cancelBackupConfirm.addEventListener("click", closeBackupConfirm);
+      backupConfirmDialog.addEventListener("cancel", () => {
+        state.pendingBackup = null;
+      });
       list.addEventListener("click", (event) => {
         const button = event.target.closest(".add-to-backup");
         if (!button || button.disabled) return;
-        saveSkill(button.dataset.id, button.dataset.installPath);
+        resolveSkillBeforeBackup(button.dataset.id, button.dataset.installPath, button);
       });
       backupList.addEventListener("click", (event) => {
         const button = event.target.closest(".remove-stack-skill");
