@@ -97,6 +97,20 @@ export async function createStackFile(options: StackStoreOptions = {}): Promise<
   return stack;
 }
 
+export async function writeStackFile(
+  stack: AgentDockStack,
+  options: StackStoreOptions = {}
+): Promise<AgentDockStack> {
+  const stackPath = options.stackPath ?? getDefaultStackPath();
+  const nextStack: AgentDockStack = {
+    schemaVersion: 1,
+    skills: [...stack.skills].sort((left, right) => left.id.localeCompare(right.id))
+  };
+
+  await writeStack(nextStack, stackPath);
+  return nextStack;
+}
+
 export async function addSkillToStack(
   skill: InstalledSkill,
   options: StackStoreOptions = {}

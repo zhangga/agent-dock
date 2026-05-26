@@ -25,8 +25,15 @@ import {
   readStackFileState,
   removeSkillFromStack,
   updateSkillSourceInStack,
+  writeStackFile,
   type StackSkillInstall
 } from "../core/stackStore.js";
+import {
+  applyProfileImport,
+  createProfileFromStack,
+  parseProfileInput,
+  previewProfileImport
+} from "../core/profileStore.js";
 import {
   chooseStackFileWithSystemPicker,
   type StackFilePicker
@@ -337,6 +344,57 @@ async function handleRequest(
       checks,
       summary: summarizeDiagnostics(checks)
     });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/profile/export") {
+    const stackPath = await resolveStackPath(options);
+    const stack = await readStack({ stackPath });
+    sendJson(response, 200, {
+      fileName: "agentdock-profile.json",
+      profile: createProfileFromStack(stack)
+    });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/profile/import/preview") {
+    const body = await readJsonBody(request);
+    const stackPath = await resolveStackPath(options);
+    const stack = await readStack({ stackPath });
+
+    try {
+      const profile = parseProfileInput(body.profile);
+      sendJson(response, 200, {
+        preview: previewProfileImport(profile, stack)
+      });
+    } catch (error) {
+      sendJson(response, 400, {
+        error: error instanceof Error ? error.message : "Could not read profile"
+      });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/profile/import/apply") {
+    const body = await readJsonBody(request);
+    const stackPath = await resolveStackPath(options);
+    const stack = await readStack({ stackPath });
+
+    try {
+      const profile = parseProfileInput(body.profile);
+      const result = applyProfileImport(profile, stack);
+      const nextStack = await writeStackFile(result.stack, { stackPath });
+      const stackFile = await readStackFileState({ stackPath });
+      sendJson(response, 200, {
+        stack: nextStack,
+        stackFile,
+        preview: result.preview
+      });
+    } catch (error) {
+      sendJson(response, 400, {
+        error: error instanceof Error ? error.message : "Could not import profile"
+      });
+    }
     return;
   }
 

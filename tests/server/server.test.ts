@@ -1078,4 +1078,161 @@ describe("AgentDock server", () => {
       }
     );
   });
+
+  test("exports the current backup as a profile", async () => {
+    const root = await makeTempRoot();
+    const stackPath = join(root, ".agentdock", "stack.json");
+
+    await withServer(
+      [root],
+      async (baseUrl) => {
+        await fetch(`${baseUrl}/api/stack/create`, { method: "POST" });
+        const stack = {
+          schemaVersion: 1,
+          skills: [
+            {
+              id: "find-skills",
+              type: "skill",
+              source: {
+                type: "skills.sh",
+                package: "vercel-labs/skills",
+                skill: "find-skills"
+              },
+              desiredState: "enabled"
+            }
+          ]
+        };
+        await writeFile(stackPath, `${JSON.stringify(stack, null, 2)}\n`, "utf8");
+
+        const response = await fetch(`${baseUrl}/api/profile/export`);
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.fileName).toBe("agentdock-profile.json");
+        expect(payload.profile).toMatchObject({
+          schemaVersion: 1,
+          agentdockVersion: "0.1.0",
+          stack
+        });
+        expect(typeof payload.profile.exportedAt).toBe("string");
+      },
+      { stackPath }
+    );
+  });
+
+  test("previews profile imports against the current backup", async () => {
+    const root = await makeTempRoot();
+    const stackPath = join(root, ".agentdock", "stack.json");
+    const profile = {
+      schemaVersion: 1,
+      exportedAt: "2026-05-26T00:00:00.000Z",
+      agentdockVersion: "0.1.0",
+      stack: {
+        schemaVersion: 1,
+        skills: [
+          {
+            id: "find-skills",
+            type: "skill",
+            source: {
+              type: "skills.sh",
+              package: "vercel-labs/skills",
+              skill: "find-skills"
+            },
+            desiredState: "enabled"
+          },
+          {
+            id: "new-skill",
+            type: "skill",
+            source: {
+              type: "command",
+              install: "npx skills add owner/repo --skill new-skill"
+            },
+            desiredState: "enabled"
+          }
+        ]
+      }
+    };
+
+    await withServer(
+      [root],
+      async (baseUrl) => {
+        await fetch(`${baseUrl}/api/stack/create`, { method: "POST" });
+        await writeFile(
+          stackPath,
+          JSON.stringify(
+            {
+              schemaVersion: 1,
+              skills: [profile.stack.skills[0]]
+            },
+            null,
+            2
+          ),
+          "utf8"
+        );
+
+        const response = await fetch(`${baseUrl}/api/profile/import/preview`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ profile })
+        });
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.preview.summary).toEqual({
+          new: 1,
+          existing: 1,
+          updated: 0,
+          invalid: 0
+        });
+      },
+      { stackPath }
+    );
+  });
+
+  test("applies valid profile imports into the current backup", async () => {
+    const root = await makeTempRoot();
+    const stackPath = join(root, ".agentdock", "stack.json");
+    const profile = {
+      schemaVersion: 1,
+      exportedAt: "2026-05-26T00:00:00.000Z",
+      agentdockVersion: "0.1.0",
+      stack: {
+        schemaVersion: 1,
+        skills: [
+          {
+            id: "new-skill",
+            type: "skill",
+            source: {
+              type: "skills.sh",
+              package: "owner/repo",
+              skill: "new-skill"
+            },
+            desiredState: "enabled"
+          }
+        ]
+      }
+    };
+
+    await withServer(
+      [root],
+      async (baseUrl) => {
+        await fetch(`${baseUrl}/api/stack/create`, { method: "POST" });
+
+        const response = await fetch(`${baseUrl}/api/profile/import/apply`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ profile: JSON.stringify(profile) })
+        });
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.preview.summary.new).toBe(1);
+        expect(payload.stack.skills.map((skill: { id: string }) => skill.id)).toEqual(["new-skill"]);
+
+        const file = JSON.parse(await readFile(stackPath, "utf8"));
+        expect(file.skills.map((skill: { id: string }) => skill.id)).toEqual(["new-skill"]);
+      },
+      { stackPath }
+    );
+  });
 });
