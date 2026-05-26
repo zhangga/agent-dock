@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, test } from "vitest";
 import {
   addSkillToStack,
+  addStackSkillToStack,
   createStackFile,
   readStack,
   readStackFileState,
@@ -107,6 +108,77 @@ describe("stackStore", () => {
     const file = JSON.parse(await readFile(stackPath, "utf8"));
     expect(file.skills[0]).toEqual(stack.skills[0]);
     expect(Object.keys(file.skills[0]).sort()).toEqual(["desiredState", "id", "source", "type"]);
+  });
+
+  test("adds a stack skill without requiring a local install", async () => {
+    const root = await makeTempRoot();
+    const stackPath = join(root, "stack.json");
+
+    const stack = await addStackSkillToStack(
+      {
+        id: "chatgpt-images-fallback",
+        type: "skill",
+        source: {
+          type: "skills.sh",
+          package: "zhangga/aihub",
+          skill: "chatgpt-images-fallback"
+        },
+        desiredState: "enabled"
+      },
+      { stackPath }
+    );
+
+    expect(stack.skills).toEqual([
+      {
+        id: "chatgpt-images-fallback",
+        type: "skill",
+        source: {
+          type: "skills.sh",
+          package: "zhangga/aihub",
+          skill: "chatgpt-images-fallback"
+        },
+        desiredState: "enabled"
+      }
+    ]);
+  });
+
+  test("upserts a manually added stack skill by type and id", async () => {
+    const root = await makeTempRoot();
+    const stackPath = join(root, "stack.json");
+
+    await addStackSkillToStack(
+      {
+        id: "skill-name",
+        type: "skill",
+        source: {
+          type: "command",
+          install: "npx skills add old/repo --skill skill-name"
+        },
+        desiredState: "enabled"
+      },
+      { stackPath }
+    );
+
+    const stack = await addStackSkillToStack(
+      {
+        id: "skill-name",
+        type: "skill",
+        source: {
+          type: "skills.sh",
+          package: "owner/repo",
+          skill: "skill-name"
+        },
+        desiredState: "enabled"
+      },
+      { stackPath }
+    );
+
+    expect(stack.skills).toHaveLength(1);
+    expect(stack.skills[0]?.source).toEqual({
+      type: "skills.sh",
+      package: "owner/repo",
+      skill: "skill-name"
+    });
   });
 
   test("stores a structured skills.sh source for a saved skill", async () => {

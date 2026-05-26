@@ -125,6 +125,43 @@ export function normalizeInstallInput(input: string): RestoreCommand | undefined
   return parseInstallCommand(input) ?? parseGitHubSkillUrl(input);
 }
 
+export function stackSkillFromInstallInput(input: string): StackSkill | undefined {
+  const restoreCommand = normalizeInstallInput(input);
+  if (!restoreCommand) {
+    return undefined;
+  }
+
+  const packageInput = restoreCommand.args[2];
+  const skill = restoreCommand.args[4];
+  if (!packageInput || !skill) {
+    return undefined;
+  }
+
+  const packageName = normalizePackageInput(packageInput);
+  if (!packageName) {
+    return {
+      id: skill,
+      type: "skill",
+      source: {
+        type: "command",
+        install: restoreCommand.display
+      },
+      desiredState: "enabled"
+    };
+  }
+
+  return {
+    id: skill,
+    type: "skill",
+    source: {
+      type: "skills.sh",
+      package: packageName,
+      skill
+    },
+    desiredState: "enabled"
+  };
+}
+
 export function parseInstallCommand(command: string): RestoreCommand | undefined {
   const normalized = command.trim().replace(/\s+/g, " ");
   const match = normalized.match(
@@ -192,6 +229,17 @@ function findLastSkillsPathSegment(segments: string[]): number {
   }
 
   return -1;
+}
+
+function normalizePackageInput(input: string): string | undefined {
+  const trimmed = input.trim();
+  const githubPrefix = "https://github.com/";
+
+  if (trimmed.startsWith(githubPrefix)) {
+    return trimmed.slice(githubPrefix.length);
+  }
+
+  return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(trimmed) ? trimmed : undefined;
 }
 
 function isSafePackageSegment(value: string): boolean {

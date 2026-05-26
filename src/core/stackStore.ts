@@ -131,6 +131,25 @@ export async function addSkillToStack(
   return stack;
 }
 
+export async function addStackSkillToStack(
+  skill: StackSkill,
+  options: StackStoreOptions = {}
+): Promise<AgentDockStack> {
+  const stackPath = options.stackPath ?? getDefaultStackPath();
+  const stack = await readStack({ stackPath });
+  const existingIndex = stack.skills.findIndex((item) => stackSkillKey(item) === stackSkillKey(skill));
+
+  if (existingIndex >= 0) {
+    stack.skills[existingIndex] = skill;
+  } else {
+    stack.skills.push(skill);
+  }
+
+  stack.skills.sort((left, right) => left.id.localeCompare(right.id));
+  await writeStack(stack, stackPath);
+  return stack;
+}
+
 export async function removeSkillFromStack(
   skill: Pick<StackSkill, "id">,
   options: StackStoreOptions = {}

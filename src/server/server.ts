@@ -16,10 +16,12 @@ import {
   buildRestorePlan,
   normalizeInstallInput,
   restoreMissingSkills,
+  stackSkillFromInstallInput,
   type RestoreCommandRunner
 } from "../core/skillRestoreExecutor.js";
 import {
   addSkillToStack,
+  addStackSkillToStack,
   createStackFile,
   readStack,
   readStackFileState,
@@ -249,6 +251,28 @@ async function handleRequest(
     const stack = await addSkillToStack(skill, { stackPath, install });
     const stackFile = await readStackFileState({ stackPath });
     sendJson(response, 200, { stack, stackFile });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/stack/skills/manual") {
+    const body = await readJsonBody(request);
+    const install = typeof body.install === "string" ? body.install.trim() : "";
+
+    if (!install) {
+      sendJson(response, 400, { error: "Install command or GitHub skill URL is required." });
+      return;
+    }
+
+    const skill = stackSkillFromInstallInput(install);
+    if (!skill) {
+      sendJson(response, 400, { error: "Enter a npx skills add command or a GitHub skill URL." });
+      return;
+    }
+
+    const stackPath = await resolveStackPath(options);
+    const stack = await addStackSkillToStack(skill, { stackPath });
+    const stackFile = await readStackFileState({ stackPath });
+    sendJson(response, 200, { stack, stackFile, skill: { id: skill.id } });
     return;
   }
 

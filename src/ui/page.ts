@@ -376,6 +376,19 @@ export function renderConsoleHtml(): string {
         border-bottom: 1px solid var(--line);
       }
 
+      .manual-source-panel {
+        margin-bottom: 28px;
+        padding-bottom: 26px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .manual-source-form {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: end;
+      }
+
       .section-head {
         display: flex;
         align-items: end;
@@ -1050,7 +1063,8 @@ export function renderConsoleHtml(): string {
         .profile-grid,
         .restore-preview-grid,
         .install-script-box,
-        .diagnostic-check {
+        .diagnostic-check,
+        .manual-source-form {
           grid-template-columns: 1fr;
         }
 
@@ -1127,6 +1141,7 @@ export function renderConsoleHtml(): string {
         .delete-local-skill,
         .retry-restore,
         .profile-actions .button,
+        .manual-source-form .button,
         .manual-command-form .button {
           width: 100%;
         }
@@ -1219,6 +1234,21 @@ export function renderConsoleHtml(): string {
           <section id="skill-list" aria-live="polite"></section>
         </section>
         <section id="backup-panel" class="view-panel" role="tabpanel" aria-labelledby="backup-tab" data-view="backup" hidden>
+          <section class="manual-source-panel" aria-labelledby="manual-source-heading">
+            <div class="section-head">
+              <div>
+                <p class="kicker">Add by source</p>
+                <h3 id="manual-source-heading">Manual restore source</h3>
+              </div>
+            </div>
+            <form id="manual-source-form" class="manual-source-form">
+              <label class="backup-command-label" for="manual-source-input">
+                Install command or GitHub skill URL
+                <input id="manual-source-input" class="backup-command-input" type="text" autocomplete="off" placeholder="https://github.com/owner/repo/tree/main/skills/skill-name" />
+              </label>
+              <button id="manual-source-save" class="button" type="submit">Add source</button>
+            </form>
+          </section>
           <section class="stack-panel" aria-labelledby="backup-heading">
             <div class="section-head">
               <div>
@@ -1344,6 +1374,8 @@ export function renderConsoleHtml(): string {
       };
       const list = document.querySelector("#skill-list");
       const backupList = document.querySelector("#backup-list");
+      const manualSourceForm = document.querySelector("#manual-source-form");
+      const manualSourceInput = document.querySelector("#manual-source-input");
       const stackSummary = document.querySelector("#stack-summary");
       const profileExport = document.querySelector("#profile-export");
       const exportProfileButton = document.querySelector("#export-profile");
@@ -1922,6 +1954,35 @@ export function renderConsoleHtml(): string {
         render();
       }
 
+      async function addManualSource(install) {
+        const command = String(install || "").trim();
+        if (!command) {
+          statusLine.textContent = "Enter an install command or GitHub skill URL";
+          manualSourceInput.focus();
+          return;
+        }
+
+        statusLine.textContent = "Saving skill source to backup...";
+        const response = await fetch("/api/stack/skills/manual", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ install: command })
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          statusLine.textContent = payload.error || "Could not save skill source";
+          manualSourceInput.focus();
+          return;
+        }
+
+        state.stack = payload.stack || state.stack;
+        state.stackFile = payload.stackFile || state.stackFile;
+        manualSourceInput.value = "";
+        statusLine.textContent = "Skill source saved to backup";
+        render();
+      }
+
       async function removeStackSkill(id) {
         statusLine.textContent = "Removing skill from backup...";
         const response = await fetch("/api/stack/skills", {
@@ -2474,6 +2535,10 @@ export function renderConsoleHtml(): string {
       stackPathForm.addEventListener("submit", (event) => {
         event.preventDefault();
         setStackPath(stackPathInput.value);
+      });
+      manualSourceForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        addManualSource(manualSourceInput.value);
       });
       backupConfirmForm.addEventListener("submit", (event) => {
         event.preventDefault();

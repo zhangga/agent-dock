@@ -4,6 +4,7 @@ import {
   normalizeInstallInput,
   parseInstallCommand,
   restoreMissingSkills,
+  stackSkillFromInstallInput,
   type RestoreCommandRunner
 } from "../../src/core/skillRestoreExecutor.js";
 import type { InstalledSkill } from "../../src/core/skillScanner.js";
@@ -112,6 +113,38 @@ describe("skillRestoreExecutor", () => {
     expect(
       normalizeInstallInput(" https://github.com/owner/repo/tree/feature/branch/skills/skill-name/?tab=readme#usage ")
     ).toHaveProperty("display", "npx skills add https://github.com/owner/repo --skill skill-name");
+  });
+
+  test("creates a stack skill from a GitHub skill directory URL", () => {
+    expect(
+      stackSkillFromInstallInput("https://github.com/zhangga/aihub/tree/main/skills/chatgpt-images-fallback")
+    ).toEqual({
+      id: "chatgpt-images-fallback",
+      type: "skill",
+      source: {
+        type: "skills.sh",
+        package: "zhangga/aihub",
+        skill: "chatgpt-images-fallback"
+      },
+      desiredState: "enabled"
+    });
+  });
+
+  test("creates a stack skill from a shorthand install command", () => {
+    expect(stackSkillFromInstallInput("npx skills add owner/repo --skill skill-name")).toEqual({
+      id: "skill-name",
+      type: "skill",
+      source: {
+        type: "skills.sh",
+        package: "owner/repo",
+        skill: "skill-name"
+      },
+      desiredState: "enabled"
+    });
+  });
+
+  test("returns undefined for unsupported manual source input", () => {
+    expect(stackSkillFromInstallInput("npm install owner/repo")).toBeUndefined();
   });
 
   test("rejects unsupported GitHub URLs as install inputs", () => {

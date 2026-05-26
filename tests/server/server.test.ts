@@ -310,6 +310,76 @@ describe("AgentDock server", () => {
     );
   });
 
+  test("saves a manual source to backup without a local install", async () => {
+    const root = await makeTempRoot();
+    const stackPath = join(root, ".agentdock", "stack.json");
+
+    await withServer(
+      [root],
+      async (baseUrl) => {
+        const response = await fetch(`${baseUrl}/api/stack/skills/manual`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            install: "https://github.com/zhangga/aihub/tree/main/skills/chatgpt-images-fallback"
+          })
+        });
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.skill).toEqual({ id: "chatgpt-images-fallback" });
+        expect(payload.stack.skills).toEqual([
+          {
+            id: "chatgpt-images-fallback",
+            type: "skill",
+            source: {
+              type: "skills.sh",
+              package: "zhangga/aihub",
+              skill: "chatgpt-images-fallback"
+            },
+            desiredState: "enabled"
+          }
+        ]);
+        expect(payload.stackFile.exists).toBe(true);
+      },
+      { stackPath }
+    );
+  });
+
+  test("rejects manual source saves without supported input", async () => {
+    const root = await makeTempRoot();
+    const stackPath = join(root, ".agentdock", "stack.json");
+
+    await withServer(
+      [root],
+      async (baseUrl) => {
+        const missingResponse = await fetch(`${baseUrl}/api/stack/skills/manual`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({})
+        });
+        const missingPayload = await missingResponse.json();
+
+        const invalidResponse = await fetch(`${baseUrl}/api/stack/skills/manual`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ install: "npm install owner/repo" })
+        });
+        const invalidPayload = await invalidResponse.json();
+
+        expect(missingResponse.status).toBe(400);
+        expect(missingPayload).toEqual({
+          error: "Install command or GitHub skill URL is required."
+        });
+        expect(invalidResponse.status).toBe(400);
+        expect(invalidPayload).toEqual({
+          error: "Enter a npx skills add command or a GitHub skill URL."
+        });
+      },
+      { stackPath }
+    );
+  });
+
   test("removes a saved skill from the stack", async () => {
     const root = await makeTempRoot();
     const stackPath = join(root, ".agentdock", "stack.json");
@@ -849,10 +919,15 @@ describe("AgentDock server", () => {
 
       expect(response.status).toBe(200);
       expect(html).toContain("Backup Contents");
+      expect(html).toContain("Add by source");
       expect(html).toContain("backup-list");
+      expect(html).toContain('id="manual-source-form"');
+      expect(html).toContain('id="manual-source-input"');
       expect(html).toContain("stack-count");
       expect(html).toContain("add-to-backup");
       expect(html).toContain("remove-stack-skill");
+      expect(html).toContain("addManualSource(");
+      expect(html).toContain('fetch("/api/stack/skills/manual"');
       expect(html).toContain("renderBackupContents(");
       expect(html).toContain("Restore source");
       expect(html).toContain("This skill does not have a restore source yet.");
