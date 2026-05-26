@@ -881,6 +881,30 @@ describe("AgentDock server", () => {
     });
   });
 
+  test("serves profile export and import controls inside the backup view", async () => {
+    const root = await makeTempRoot();
+
+    await withServer([root], async (baseUrl) => {
+      const response = await fetch(baseUrl);
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain("Profile Sync");
+      expect(html).toContain('id="profile-export"');
+      expect(html).toContain('id="export-profile"');
+      expect(html).toContain('id="copy-profile"');
+      expect(html).toContain('id="profile-import-input"');
+      expect(html).toContain('id="preview-profile-import"');
+      expect(html).toContain('id="apply-profile-import"');
+      expect(html).toContain("exportProfile(");
+      expect(html).toContain("previewProfileImport(");
+      expect(html).toContain("applyProfileImport(");
+      expect(html).toContain('fetch("/api/profile/export")');
+      expect(html).toContain('fetch("/api/profile/import/preview"');
+      expect(html).toContain('fetch("/api/profile/import/apply"');
+    });
+  });
+
   test("serves local skill uninstall controls inside the installed list", async () => {
     const root = await makeTempRoot();
 

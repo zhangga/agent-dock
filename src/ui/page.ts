@@ -725,6 +725,97 @@ export function renderConsoleHtml(): string {
         overflow-wrap: anywhere;
       }
 
+      .profile-panel {
+        margin-top: 24px;
+      }
+
+      .profile-grid {
+        display: grid;
+        grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
+        gap: 14px;
+        align-items: start;
+      }
+
+      .profile-box {
+        display: grid;
+        gap: 10px;
+      }
+
+      .profile-box h4 {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.2;
+      }
+
+      .profile-help {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .profile-textarea {
+        min-height: 170px;
+        width: 100%;
+        resize: vertical;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.92);
+        color: var(--ink);
+        padding: 12px;
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.55;
+        outline: none;
+      }
+
+      .profile-textarea:focus {
+        border-color: var(--accent);
+      }
+
+      .profile-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .profile-preview {
+        display: grid;
+        gap: 8px;
+      }
+
+      .profile-preview-row {
+        display: grid;
+        grid-template-columns: minmax(120px, 0.4fr) auto minmax(0, 1fr);
+        gap: 10px;
+        align-items: start;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.92);
+        padding: 10px 12px;
+      }
+
+      .profile-status {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 3px 8px;
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      .profile-status.new,
+      .profile-status.updated {
+        border-color: rgba(11, 93, 85, 0.28);
+        color: var(--success);
+      }
+
+      .profile-status.invalid {
+        border-color: rgba(180, 35, 24, 0.24);
+        color: var(--accent-2);
+      }
+
       .manual-command-form {
         display: grid;
         gap: 8px;
@@ -956,6 +1047,7 @@ export function renderConsoleHtml(): string {
           flex-direction: column;
         }
 
+        .profile-grid,
         .restore-preview-grid,
         .install-script-box,
         .diagnostic-check {
@@ -1034,6 +1126,7 @@ export function renderConsoleHtml(): string {
         .remove-stack-skill,
         .delete-local-skill,
         .retry-restore,
+        .profile-actions .button,
         .manual-command-form .button {
           width: 100%;
         }
@@ -1136,6 +1229,36 @@ export function renderConsoleHtml(): string {
             </div>
             <div id="backup-list" aria-live="polite"></div>
           </section>
+          <section class="profile-panel" aria-labelledby="profile-heading">
+            <div class="section-head">
+              <div>
+                <p class="kicker">Profile Sync</p>
+                <h3 id="profile-heading">Export and import profiles</h3>
+              </div>
+              <span id="profile-import-summary" class="stack-summary">No profile preview yet</span>
+            </div>
+            <div class="profile-grid">
+              <div class="profile-box">
+                <h4>Export profile</h4>
+                <p class="profile-help">Generate a portable profile from the current Backup.</p>
+                <textarea id="profile-export" class="profile-textarea" readonly spellcheck="false" aria-label="Generated profile JSON"></textarea>
+                <div class="profile-actions">
+                  <button id="export-profile" class="button" type="button">Export profile</button>
+                  <button id="copy-profile" class="button secondary" type="button" disabled>Copy profile</button>
+                </div>
+              </div>
+              <div class="profile-box">
+                <h4>Import profile</h4>
+                <p class="profile-help">Paste an AgentDock profile, preview the changes, then apply it to Backup.</p>
+                <textarea id="profile-import-input" class="profile-textarea" spellcheck="false" aria-label="Profile JSON to import"></textarea>
+                <div class="profile-actions">
+                  <button id="preview-profile-import" class="button secondary" type="button">Preview import</button>
+                  <button id="apply-profile-import" class="button" type="button" disabled>Apply import</button>
+                </div>
+                <div id="profile-import-preview" class="profile-preview" aria-live="polite"></div>
+              </div>
+            </div>
+          </section>
         </section>
         <section id="restore-panel" class="view-panel" role="tabpanel" aria-labelledby="restore-tab" data-view="restore" hidden>
           <section id="restore-preview" class="restore-preview" aria-labelledby="restore-preview-heading">
@@ -1212,6 +1335,7 @@ export function renderConsoleHtml(): string {
         stack: { skills: [] },
         stackFile: { path: "", exists: false },
         diagnostics: { checks: [], summary: { ok: 0, warning: 0, error: 0 }, loaded: false, loading: false },
+        profileImportPreview: null,
         restoreResults: [],
         pendingBackup: null,
         pendingDelete: null,
@@ -1221,6 +1345,14 @@ export function renderConsoleHtml(): string {
       const list = document.querySelector("#skill-list");
       const backupList = document.querySelector("#backup-list");
       const stackSummary = document.querySelector("#stack-summary");
+      const profileExport = document.querySelector("#profile-export");
+      const exportProfileButton = document.querySelector("#export-profile");
+      const copyProfileButton = document.querySelector("#copy-profile");
+      const profileImportInput = document.querySelector("#profile-import-input");
+      const previewProfileImportButton = document.querySelector("#preview-profile-import");
+      const applyProfileImportButton = document.querySelector("#apply-profile-import");
+      const profileImportSummary = document.querySelector("#profile-import-summary");
+      const profileImportPreview = document.querySelector("#profile-import-preview");
       const restorePreviewSummary = document.querySelector("#restore-preview-summary");
       const restorePreviewList = document.querySelector("#restore-preview-list");
       const restoreResults = document.querySelector("#restore-results");
@@ -1313,6 +1445,7 @@ export function renderConsoleHtml(): string {
         renderTabCounts(installed);
         renderStackFile();
         renderBackupContents(installed, installedById);
+        renderProfileImportPreview();
         renderRestorePreview(installed);
         renderDiagnostics();
         activateView(state.activeView);
@@ -1809,6 +1942,151 @@ export function renderConsoleHtml(): string {
         render();
       }
 
+      async function exportProfile() {
+        statusLine.textContent = "Exporting profile...";
+        const response = await fetch("/api/profile/export");
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          statusLine.textContent = payload.error || "Could not export profile";
+          return;
+        }
+
+        profileExport.value = JSON.stringify(payload.profile || {}, null, 2);
+        copyProfileButton.disabled = !profileExport.value.trim();
+        statusLine.textContent = "Profile exported";
+      }
+
+      async function copyProfile() {
+        const profileText = profileExport.value.trim();
+        if (!profileText) {
+          statusLine.textContent = "Export a profile before copying";
+          return;
+        }
+
+        if (await copyTextWithFallback(profileText)) {
+          statusLine.textContent = "Profile copied";
+          return;
+        }
+
+        statusLine.textContent = "Could not copy profile";
+      }
+
+      async function previewProfileImport() {
+        const profile = profileImportInput.value.trim();
+        if (!profile) {
+          statusLine.textContent = "Paste a profile before previewing";
+          profileImportInput.focus();
+          return;
+        }
+
+        statusLine.textContent = "Previewing profile import...";
+        const response = await fetch("/api/profile/import/preview", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ profile })
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          state.profileImportPreview = {
+            items: [
+              {
+                id: "profile",
+                status: "invalid",
+                reason: payload.error || "Could not preview profile"
+              }
+            ],
+            summary: { new: 0, existing: 0, updated: 0, invalid: 1 }
+          };
+          statusLine.textContent = payload.error || "Could not preview profile";
+          renderProfileImportPreview();
+          return;
+        }
+
+        state.profileImportPreview = payload.preview || null;
+        statusLine.textContent = getProfileImportSummaryText(state.profileImportPreview);
+        renderProfileImportPreview();
+      }
+
+      async function applyProfileImport() {
+        const profile = profileImportInput.value.trim();
+        if (!profile) {
+          statusLine.textContent = "Paste a profile before applying";
+          profileImportInput.focus();
+          return;
+        }
+
+        applyProfileImportButton.disabled = true;
+        statusLine.textContent = "Applying profile import...";
+        const response = await fetch("/api/profile/import/apply", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ profile })
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          statusLine.textContent = payload.error || "Could not apply profile";
+          renderProfileImportPreview();
+          return;
+        }
+
+        state.stack = payload.stack || state.stack;
+        state.stackFile = payload.stackFile || state.stackFile;
+        state.profileImportPreview = payload.preview || state.profileImportPreview;
+        statusLine.textContent = "Profile imported into Backup";
+        render();
+      }
+
+      function renderProfileImportPreview() {
+        const preview = state.profileImportPreview;
+        const applicableCount = getProfileApplicableCount(preview);
+        applyProfileImportButton.disabled = applicableCount === 0;
+
+        if (!preview) {
+          profileImportSummary.textContent = "No profile preview yet";
+          profileImportPreview.innerHTML = "";
+          return;
+        }
+
+        profileImportSummary.textContent = getProfileImportSummaryText(preview);
+        profileImportPreview.innerHTML = preview.items && preview.items.length
+          ? preview.items.map(renderProfileImportItem).join("")
+          : '<div class="stack-empty"><strong>No skills in profile</strong><span>This profile does not contain importable skills.</span></div>';
+      }
+
+      function renderProfileImportItem(item) {
+        const status = String(item.status || "invalid");
+        return [
+          '<div class="profile-preview-row">',
+          '<div class="skill-name">' + escapeHtml(item.id || "Invalid entry") + '</div>',
+          '<span class="profile-status ' + escapeHtml(status) + '">' + escapeHtml(status) + '</span>',
+          '<div class="profile-help">' + escapeHtml(getProfileImportItemMessage(item)) + '</div>',
+          '</div>'
+        ].join("");
+      }
+
+      function getProfileImportItemMessage(item) {
+        if (item.reason) return item.reason;
+        if (item.status === "new") return "Will be added to Backup.";
+        if (item.status === "updated") return "Will replace the saved restore source.";
+        if (item.status === "existing") return "Already saved with the same restore source.";
+        return "This profile entry cannot be imported.";
+      }
+
+      function getProfileImportSummaryText(preview) {
+        if (!preview || !preview.summary) return "No profile preview yet";
+        const summary = preview.summary;
+        const applicableCount = getProfileApplicableCount(preview);
+        return applicableCount + " to import / " + Number(summary.existing || 0) + " unchanged / " + Number(summary.invalid || 0) + " invalid";
+      }
+
+      function getProfileApplicableCount(preview) {
+        if (!preview || !preview.summary) return 0;
+        return Number(preview.summary.new || 0) + Number(preview.summary.updated || 0);
+      }
+
       async function createStackFile() {
         statusLine.textContent = "Creating backup file...";
         const response = await fetch("/api/stack/create", { method: "POST" });
@@ -2179,6 +2457,10 @@ export function renderConsoleHtml(): string {
       copyInstallScript.addEventListener("click", copyInstallScriptText);
       startRestoreButton.addEventListener("click", () => startRestore());
       runDiagnosticsButton.addEventListener("click", runDiagnostics);
+      exportProfileButton.addEventListener("click", exportProfile);
+      copyProfileButton.addEventListener("click", copyProfile);
+      previewProfileImportButton.addEventListener("click", previewProfileImport);
+      applyProfileImportButton.addEventListener("click", applyProfileImport);
       createStack.addEventListener("click", createStackFile);
       chooseStackFileButton.addEventListener("click", chooseStackFileWithDialog);
       revealStackFileButton.addEventListener("click", revealStackFileLocation);
