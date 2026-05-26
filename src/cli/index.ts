@@ -4,17 +4,16 @@ import { createAgentDockServer } from "../server/server.js";
 import { listenWithPortFallback } from "../server/listen.js";
 import { scanInstalledSkills } from "../core/skillScanner.js";
 import { formatPortBusyHelp } from "./portHelp.js";
-
-interface ParsedArgs {
-  command: "serve" | "status" | "help";
-  host: string;
-  port: number;
-  open: boolean;
-  skillRoots?: string[];
-}
+import {
+  parseCliArgs,
+  runDiagnosticsCommand,
+  runProfileExportCommand,
+  runProfileImportCommand,
+  type ParsedArgs
+} from "./commands.js";
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseCliArgs(process.argv.slice(2));
 
   if (args.command === "help") {
     printHelp();
@@ -26,52 +25,34 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (args.command === "diagnostics") {
+    const result = await runDiagnosticsCommand({ skillRoots: args.skillRoots });
+    process.stdout.write(result.stdout);
+    process.exitCode = result.exitCode;
+    return;
+  }
+
+  if (args.command === "profile-export") {
+    const result = await runProfileExportCommand({ outputPath: args.profileOutputPath });
+    process.stdout.write(result.stdout);
+    process.exitCode = result.exitCode;
+    return;
+  }
+
+  if (args.command === "profile-import") {
+    if (!args.profileInputPath) {
+      console.error("Profile path is required.");
+      process.exitCode = 1;
+      return;
+    }
+
+    const result = await runProfileImportCommand({ profilePath: args.profileInputPath });
+    process.stdout.write(result.stdout);
+    process.exitCode = result.exitCode;
+    return;
+  }
+
   await startServer(args);
-}
-
-function parseArgs(argv: string[]): ParsedArgs {
-  const parsed: ParsedArgs = {
-    command: "serve",
-    host: "127.0.0.1",
-    port: 3789,
-    open: true
-  };
-
-  const rest = [...argv];
-  const first = rest[0];
-  if (first === "status" || first === "help") {
-    parsed.command = first;
-    rest.shift();
-  }
-
-  if (first === "--help" || first === "-h") {
-    parsed.command = "help";
-  }
-
-  for (let index = 0; index < rest.length; index += 1) {
-    const arg = rest[index];
-
-    if (arg === "--host") {
-      parsed.host = rest[++index] ?? parsed.host;
-      continue;
-    }
-
-    if (arg === "--port") {
-      parsed.port = Number(rest[++index] ?? parsed.port);
-      continue;
-    }
-
-    if (arg === "--no-open") {
-      parsed.open = false;
-      continue;
-    }
-
-    if (arg === "--skill-root") {
-      parsed.skillRoots = [...(parsed.skillRoots ?? []), rest[++index]];
-    }
-  }
-
-  return parsed;
 }
 
 async function printStatus(skillRoots?: string[]): Promise<void> {
@@ -122,12 +103,16 @@ function printHelp(): void {
 Usage:
   agentdock [--port 3789] [--no-open]
   agentdock status
+  agentdock diagnostics
+  agentdock profile export [--output agentdock-profile.json]
+  agentdock profile import agentdock-profile.json
 
 Options:
   --skill-root <path>  Scan an additional explicit skill root. Repeatable.
   --host <host>       Host for the local console. Defaults to 127.0.0.1.
   --port <port>       Port for the local console. Defaults to 3789.
   --no-open           Do not open the browser automatically.
+  --output <path>     Write profile export JSON to a file instead of stdout.
 `);
 }
 
