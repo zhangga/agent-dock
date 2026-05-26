@@ -742,6 +742,55 @@ export function renderConsoleHtml(): string {
         margin-top: 24px;
       }
 
+      .update-panel {
+        margin-bottom: 28px;
+        padding-bottom: 26px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .update-results {
+        display: grid;
+        gap: 8px;
+      }
+
+      .update-row {
+        display: grid;
+        grid-template-columns: minmax(140px, 0.24fr) minmax(110px, auto) minmax(0, 1fr);
+        gap: 12px;
+        align-items: start;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.92);
+        padding: 12px 14px;
+      }
+
+      .update-status {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 3px 8px;
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      .update-status.update_available {
+        border-color: rgba(180, 35, 24, 0.24);
+        color: var(--accent-2);
+      }
+
+      .update-status.up_to_date {
+        border-color: rgba(11, 93, 85, 0.28);
+        color: var(--success);
+      }
+
+      .update-status.needs_source {
+        border-color: rgba(161, 92, 0, 0.28);
+        color: #7a4600;
+      }
+
       .profile-grid {
         display: grid;
         grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
@@ -1064,6 +1113,7 @@ export function renderConsoleHtml(): string {
         .restore-preview-grid,
         .install-script-box,
         .diagnostic-check,
+        .update-row,
         .manual-source-form {
           grid-template-columns: 1fr;
         }
@@ -1249,6 +1299,21 @@ export function renderConsoleHtml(): string {
               <button id="manual-source-save" class="button" type="submit">Add source</button>
             </form>
           </section>
+          <section class="update-panel" aria-labelledby="update-heading">
+            <div class="section-head">
+              <div>
+                <p class="kicker">Update Check</p>
+                <h3 id="update-heading">Check saved skill updates</h3>
+              </div>
+              <div class="restore-actions">
+                <span id="update-summary" class="stack-summary">Not checked yet</span>
+                <button id="check-updates" class="button secondary" type="button">Check updates</button>
+              </div>
+            </div>
+            <div id="update-results" class="update-results" aria-live="polite">
+              <div class="stack-empty"><strong>Updates not checked yet</strong><span>Run a check to review saved skills and refresh commands.</span></div>
+            </div>
+          </section>
           <section class="stack-panel" aria-labelledby="backup-heading">
             <div class="section-head">
               <div>
@@ -1365,6 +1430,7 @@ export function renderConsoleHtml(): string {
         stack: { skills: [] },
         stackFile: { path: "", exists: false },
         diagnostics: { checks: [], summary: { ok: 0, warning: 0, error: 0 }, loaded: false, loading: false },
+        updates: { items: [], summary: null, loaded: false, loading: false },
         profileImportPreview: null,
         restoreResults: [],
         pendingBackup: null,
@@ -1394,6 +1460,9 @@ export function renderConsoleHtml(): string {
       const diagnosticsSummary = document.querySelector("#diagnostics-summary");
       const diagnosticsList = document.querySelector("#diagnostics-list");
       const runDiagnosticsButton = document.querySelector("#run-diagnostics");
+      const updateSummary = document.querySelector("#update-summary");
+      const updateResults = document.querySelector("#update-results");
+      const checkUpdatesButton = document.querySelector("#check-updates");
       const statusLine = document.querySelector("#status-line");
       const search = document.querySelector("#search");
       const searchWrap = document.querySelector("#search-wrap");
@@ -1477,6 +1546,7 @@ export function renderConsoleHtml(): string {
         renderTabCounts(installed);
         renderStackFile();
         renderBackupContents(installed, installedById);
+        renderUpdateResults();
         renderProfileImportPreview();
         renderRestorePreview(installed);
         renderDiagnostics();
@@ -2396,6 +2466,105 @@ export function renderConsoleHtml(): string {
         renderDiagnostics();
       }
 
+      async function checkUpdates() {
+        state.updates.loading = true;
+        checkUpdatesButton.disabled = true;
+        statusLine.textContent = "Checking saved skill updates...";
+        renderUpdateResults();
+
+        const response = await fetch("/api/check-updates", { method: "POST" });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          state.updates = {
+            items: [
+              {
+                id: "updates",
+                status: "unknown",
+                message: payload.error || "Could not check updates."
+              }
+            ],
+            summary: { update_available: 0, up_to_date: 0, unknown: 1, not_installed: 0, needs_source: 0 },
+            loaded: true,
+            loading: false
+          };
+          checkUpdatesButton.disabled = false;
+          statusLine.textContent = "Update check failed";
+          renderUpdateResults();
+          return;
+        }
+
+        state.updates = {
+          items: payload.updates && payload.updates.items ? payload.updates.items : [],
+          summary: payload.updates && payload.updates.summary ? payload.updates.summary : null,
+          loaded: true,
+          loading: false
+        };
+        checkUpdatesButton.disabled = false;
+        statusLine.textContent = getUpdateSummaryText(state.updates.summary);
+        renderUpdateResults();
+      }
+
+      function renderUpdateResults() {
+        const updates = state.updates || { items: [], summary: null, loaded: false, loading: false };
+        checkUpdatesButton.disabled = Boolean(updates.loading);
+
+        if (updates.loading) {
+          updateSummary.textContent = "Checking...";
+          updateResults.innerHTML = '<div class="stack-empty"><strong>Checking updates</strong><span>Reading Backup and local installs.</span></div>';
+          return;
+        }
+
+        if (!updates.loaded) {
+          updateSummary.textContent = "Not checked yet";
+          updateResults.innerHTML = '<div class="stack-empty"><strong>Updates not checked yet</strong><span>Run a check to review saved skills and refresh commands.</span></div>';
+          return;
+        }
+
+        updateSummary.textContent = getUpdateSummaryText(updates.summary);
+        updateResults.innerHTML = updates.items && updates.items.length
+          ? updates.items.map(renderUpdateItem).join("")
+          : '<div class="stack-empty"><strong>No saved skills</strong><span>Add skills to Backup before checking updates.</span></div>';
+      }
+
+      function renderUpdateItem(item) {
+        const status = String(item.status || "unknown");
+        const versions = [item.currentVersion, item.latestVersion].filter(Boolean).join(" -> ");
+        const command = item.suggestedCommand
+          ? '<code class="install-command">' + escapeHtml(item.suggestedCommand) + '</code>'
+          : "";
+
+        return [
+          '<div class="update-row">',
+          '<div class="skill-name">' + escapeHtml(item.id || "Skill") + '</div>',
+          '<span class="update-status ' + escapeHtml(status) + '">' + escapeHtml(status) + '</span>',
+          '<div>',
+          '<div class="diagnostic-message">' + escapeHtml(item.message || "") + '</div>',
+          versions ? '<div class="diagnostic-detail">' + escapeHtml(versions) + '</div>' : "",
+          command,
+          '</div>',
+          '</div>'
+        ].join("");
+      }
+
+      function getUpdateSummaryText(summary) {
+        if (!summary) return "Not checked yet";
+        const available = Number(summary.update_available || 0);
+        const unknown = Number(summary.unknown || 0);
+        const missing = Number(summary.not_installed || 0);
+        const needsSource = Number(summary.needs_source || 0);
+
+        if (available > 0) {
+          return available + " update" + (available === 1 ? "" : "s") + " available";
+        }
+
+        if (unknown > 0 || missing > 0 || needsSource > 0) {
+          return unknown + " unknown / " + missing + " missing / " + needsSource + " needs source";
+        }
+
+        return Number(summary.up_to_date || 0) + " up to date";
+      }
+
       function renderDiagnostics() {
         const diagnostics = state.diagnostics || { checks: [], summary: { ok: 0, warning: 0, error: 0 }, loaded: false, loading: false };
         runDiagnosticsButton.disabled = Boolean(diagnostics.loading);
@@ -2518,6 +2687,7 @@ export function renderConsoleHtml(): string {
       copyInstallScript.addEventListener("click", copyInstallScriptText);
       startRestoreButton.addEventListener("click", () => startRestore());
       runDiagnosticsButton.addEventListener("click", runDiagnostics);
+      checkUpdatesButton.addEventListener("click", checkUpdates);
       exportProfileButton.addEventListener("click", exportProfile);
       copyProfileButton.addEventListener("click", copyProfile);
       previewProfileImportButton.addEventListener("click", previewProfileImport);

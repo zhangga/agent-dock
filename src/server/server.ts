@@ -37,6 +37,10 @@ import {
   previewProfileImport
 } from "../core/profileStore.js";
 import {
+  checkSkillUpdates,
+  type SkillUpdateProbe
+} from "../core/updateChecker.js";
+import {
   chooseStackFileWithSystemPicker,
   type StackFilePicker
 } from "../system/stackFilePicker.js";
@@ -61,6 +65,7 @@ export interface AgentDockServerOptions {
   resolveSkillInstall?: SkillInstallResolver;
   restoreRunner?: RestoreCommandRunner;
   removeSkillRunner?: SkillRemoveRunner;
+  updateProbe?: SkillUpdateProbe;
   diagnostics?: RunDiagnosticsOptions;
 }
 
@@ -317,6 +322,21 @@ async function handleRequest(
     });
 
     sendJson(response, 200, { results });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/check-updates") {
+    const stackPath = await resolveStackPath(options);
+    const [stack, skills] = await Promise.all([
+      readStack({ stackPath }),
+      scanInstalledSkills({ roots: options.skillRoots })
+    ]);
+
+    const updates = await checkSkillUpdates(stack, skills, {
+      ...(options.updateProbe ? { probe: options.updateProbe } : {})
+    });
+
+    sendJson(response, 200, { updates });
     return;
   }
 

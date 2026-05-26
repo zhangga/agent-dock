@@ -8,6 +8,7 @@ import type { StackSkillInstall } from "../../src/core/stackStore.js";
 import type { RestoreCommandRunner } from "../../src/core/skillRestoreExecutor.js";
 import type { SkillRemoveRunner } from "../../src/core/skillRemover.js";
 import type { RunDiagnosticsOptions } from "../../src/core/diagnostics.js";
+import type { SkillUpdateProbe } from "../../src/core/updateChecker.js";
 
 const tempRoots: string[] = [];
 
@@ -55,6 +56,7 @@ async function withServer<T>(
     restoreRunner?: RestoreCommandRunner;
     removeSkillRunner?: SkillRemoveRunner;
     diagnostics?: RunDiagnosticsOptions;
+    updateProbe?: SkillUpdateProbe;
   } = {}
 ) {
   const server = createAgentDockServer({
@@ -65,6 +67,7 @@ async function withServer<T>(
     revealStackFile: options.revealStackFile,
     restoreRunner: options.restoreRunner,
     removeSkillRunner: options.removeSkillRunner,
+    updateProbe: options.updateProbe,
     diagnostics: options.diagnostics,
     resolveSkillInstall:
       options.resolveSkillInstall ??
@@ -783,6 +786,72 @@ describe("AgentDock server", () => {
     );
   });
 
+  test("serves read-only update checks for the current backup", async () => {
+    const root = await makeTempRoot();
+    const stackPath = join(root, ".agentdock", "stack.json");
+    await mkdir(join(root, ".agentdock"), { recursive: true });
+    await writeSkill(root, "installed-skill");
+    const stack = {
+      schemaVersion: 1,
+      skills: [
+        {
+          id: "installed-skill",
+          type: "skill",
+          source: {
+            type: "skills.sh",
+            package: "owner/repo",
+            skill: "installed-skill"
+          },
+          desiredState: "enabled"
+        },
+        {
+          id: "missing-skill",
+          type: "skill",
+          source: {
+            type: "command",
+            install: "npx skills add owner/repo --skill missing-skill"
+          },
+          desiredState: "enabled"
+        }
+      ]
+    };
+    await writeFile(stackPath, `${JSON.stringify(stack, null, 2)}\n`, "utf8");
+    const before = await readFile(stackPath, "utf8");
+
+    await withServer(
+      [root],
+      async (baseUrl) => {
+        const response = await fetch(`${baseUrl}/api/check-updates`, { method: "POST" });
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.updates.summary).toEqual({
+          update_available: 0,
+          up_to_date: 0,
+          unknown: 1,
+          not_installed: 1,
+          needs_source: 0
+        });
+        expect(payload.updates.items).toEqual([
+          expect.objectContaining({
+            id: "installed-skill",
+            installed: true,
+            status: "unknown",
+            suggestedCommand: "npx skills add https://github.com/owner/repo --skill installed-skill"
+          }),
+          expect.objectContaining({
+            id: "missing-skill",
+            installed: false,
+            status: "not_installed",
+            suggestedCommand: "npx skills add owner/repo --skill missing-skill"
+          })
+        ]);
+        expect(await readFile(stackPath, "utf8")).toBe(before);
+      },
+      { stackPath }
+    );
+  });
+
   test("saves a manual install command source while adding a skill", async () => {
     const root = await makeTempRoot();
     const stackPath = join(root, ".agentdock", "stack.json");
@@ -977,6 +1046,24 @@ describe("AgentDock server", () => {
       expect(html).toContain('fetch("/api/profile/export")');
       expect(html).toContain('fetch("/api/profile/import/preview"');
       expect(html).toContain('fetch("/api/profile/import/apply"');
+    });
+  });
+
+  test("serves update check controls inside the backup view", async () => {
+    const root = await makeTempRoot();
+
+    await withServer([root], async (baseUrl) => {
+      const response = await fetch(baseUrl);
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain("Update Check");
+      expect(html).toContain('id="check-updates"');
+      expect(html).toContain('id="update-summary"');
+      expect(html).toContain('id="update-results"');
+      expect(html).toContain("checkUpdates(");
+      expect(html).toContain("renderUpdateResults(");
+      expect(html).toContain('fetch("/api/check-updates"');
     });
   });
 
