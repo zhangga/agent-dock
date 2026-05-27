@@ -979,6 +979,23 @@ describe("AgentDock server", () => {
     });
   });
 
+  test("serves the first-run onboarding card with a dismiss action", async () => {
+    const root = await makeTempRoot();
+
+    await withServer([root], async (baseUrl) => {
+      const response = await fetch(baseUrl);
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain('id="next-step"');
+      expect(html).toContain("agentdock.onboarding.v1");
+      expect(html).toContain("readOnboardingDismissed(");
+      expect(html).toContain("persistOnboardingDismissed(");
+      expect(html).toContain("How AgentDock works");
+      expect(html).toContain("dismiss-onboarding");
+    });
+  });
+
   test("serves backup contents and location UI controls", async () => {
     const root = await makeTempRoot();
 

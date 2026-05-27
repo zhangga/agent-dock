@@ -11,6 +11,7 @@ import {
   runProfileImportCommand,
   type ParsedArgs
 } from "./commands.js";
+import { ensureDefaultStackFile } from "./startup.js";
 
 async function main(): Promise<void> {
   const args = parseCliArgs(process.argv.slice(2));
@@ -72,6 +73,8 @@ async function printStatus(skillRoots?: string[]): Promise<void> {
 }
 
 async function startServer(args: ParsedArgs): Promise<void> {
+  const stackFileResult = await ensureDefaultStackFile();
+
   const started = await listenWithPortFallback(() => createAgentDockServer({ skillRoots: args.skillRoots }), {
     host: args.host,
     port: args.port
@@ -79,6 +82,12 @@ async function startServer(args: ParsedArgs): Promise<void> {
 
   const url = `http://${args.host}:${started.port}`;
   console.log(`AgentDock is running at ${url}`);
+
+  if (stackFileResult.created) {
+    console.log(`Backup file ready at ${stackFileResult.path}`);
+  } else if (stackFileResult.error) {
+    console.warn(`Could not auto-create backup file at ${stackFileResult.path}: ${stackFileResult.error}`);
+  }
 
   if (started.usedFallback) {
     console.log("");
