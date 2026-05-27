@@ -38,6 +38,7 @@ import {
 } from "../core/profileStore.js";
 import {
   checkSkillUpdates,
+  createGitHubSkillUpdateProbe,
   type SkillUpdateProbe
 } from "../core/updateChecker.js";
 import {
@@ -70,9 +71,14 @@ export interface AgentDockServerOptions {
 }
 
 export function createAgentDockServer(options: AgentDockServerOptions = {}): Server {
+  const serverOptions: AgentDockServerOptions = {
+    ...options,
+    updateProbe: options.updateProbe ?? createGitHubSkillUpdateProbe()
+  };
+
   return createServer(async (request, response) => {
     try {
-      await handleRequest(request, response, options);
+      await handleRequest(request, response, serverOptions);
     } catch (error) {
       console.error(error);
       sendJson(response, 500, { error: "Internal server error" });

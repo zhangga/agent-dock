@@ -848,7 +848,7 @@ describe("AgentDock server", () => {
         ]);
         expect(await readFile(stackPath, "utf8")).toBe(before);
       },
-      { stackPath }
+      { stackPath, updateProbe: async () => undefined }
     );
   });
 

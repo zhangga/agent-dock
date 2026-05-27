@@ -903,6 +903,11 @@ export function renderConsoleHtml(): string {
         color: var(--success);
       }
 
+      .update-status.not_installed,
+      .update-status.unknown {
+        border-color: rgba(57, 73, 87, 0.2);
+      }
+
       .update-status.needs_source {
         border-color: rgba(161, 92, 0, 0.28);
         color: #7a4600;
@@ -2777,7 +2782,7 @@ export function renderConsoleHtml(): string {
 
         if (updates.loading) {
           updateSummary.textContent = "Checking...";
-          updateResults.innerHTML = '<div class="stack-empty"><strong>Checking updates</strong><span>Reading Backup and local installs.</span></div>';
+          updateResults.innerHTML = '<div class="stack-empty"><strong>Checking updates</strong><span>Reading Backup, local installs, and GitHub sources.</span></div>';
           return;
         }
 
@@ -2803,7 +2808,7 @@ export function renderConsoleHtml(): string {
         return [
           '<div class="update-row">',
           '<div class="skill-name">' + escapeHtml(item.id || "Skill") + '</div>',
-          '<span class="update-status ' + escapeHtml(status) + '">' + escapeHtml(status) + '</span>',
+          '<span class="update-status ' + escapeHtml(status) + '">' + escapeHtml(getUpdateStatusLabel(status)) + '</span>',
           '<div>',
           '<div class="diagnostic-message">' + escapeHtml(item.message || "") + '</div>',
           versions ? '<div class="diagnostic-detail">' + escapeHtml(versions) + '</div>' : "",
@@ -2829,6 +2834,14 @@ export function renderConsoleHtml(): string {
         }
 
         return Number(summary.up_to_date || 0) + " up to date";
+      }
+
+      function getUpdateStatusLabel(status) {
+        if (status === "update_available") return "Update available";
+        if (status === "up_to_date") return "Up to date";
+        if (status === "not_installed") return "Not installed";
+        if (status === "needs_source") return "Needs source";
+        return "Unknown";
       }
 
       function renderDiagnostics() {
