@@ -174,6 +174,47 @@ export function renderConsoleHtml(): string {
         flex: 1 1 auto;
       }
 
+      .stack-file-more {
+        margin-top: 10px;
+      }
+
+      .stack-file-more summary,
+      .advanced-section summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        cursor: pointer;
+        list-style: none;
+      }
+
+      .stack-file-more summary::-webkit-details-marker,
+      .advanced-section summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .stack-file-more summary {
+        color: var(--accent);
+        font-size: 13px;
+        font-weight: 650;
+      }
+
+      .stack-file-more summary::after,
+      .advanced-section summary::after {
+        content: "+";
+        color: var(--muted);
+        font-weight: 750;
+      }
+
+      .stack-file-more[open] summary::after,
+      .advanced-section[open] summary::after {
+        content: "-";
+      }
+
+      .stack-file-more .stack-file-actions {
+        margin-top: 10px;
+      }
+
       .button.secondary {
         color: var(--ink);
         background: transparent;
@@ -370,15 +411,86 @@ export function renderConsoleHtml(): string {
         box-shadow: 0 0 0 5px rgba(15, 118, 110, 0.1);
       }
 
+      .next-step {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 18px;
+        border: 1px solid rgba(15, 118, 110, 0.28);
+        border-radius: 8px;
+        background: #ffffff;
+        padding: 16px 18px;
+        box-shadow: 0 10px 24px rgba(23, 33, 30, 0.07);
+      }
+
+      .next-step[hidden] {
+        display: none;
+      }
+
+      .next-step > div {
+        min-width: 0;
+      }
+
+      .next-step-label {
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 750;
+        text-transform: uppercase;
+      }
+
+      .next-step-title {
+        margin-top: 2px;
+        font-size: 20px;
+        line-height: 1.15;
+      }
+
+      .next-step-body {
+        margin-top: 5px;
+        color: var(--muted);
+        line-height: 1.4;
+      }
+
       .stack-panel {
         margin-bottom: 28px;
         padding-bottom: 26px;
         border-bottom: 1px solid var(--line);
       }
 
+      .advanced-section {
+        margin-top: 22px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.74);
+      }
+
+      .advanced-section summary {
+        padding: 14px 16px;
+      }
+
+      .advanced-title {
+        display: block;
+        color: var(--ink);
+        font-weight: 750;
+      }
+
+      .advanced-note {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 400;
+      }
+
+      .advanced-body {
+        display: grid;
+        gap: 24px;
+        padding: 0 16px 16px;
+      }
+
       .manual-source-panel {
-        margin-bottom: 28px;
-        padding-bottom: 26px;
+        padding-top: 4px;
+        padding-bottom: 24px;
         border-bottom: 1px solid var(--line);
       }
 
@@ -643,6 +755,11 @@ export function renderConsoleHtml(): string {
         align-items: end;
         gap: 10px;
         flex-wrap: wrap;
+      }
+
+      .primary-restore-actions {
+        align-items: center;
+        justify-content: flex-end;
       }
 
       .advanced-option {
@@ -1074,6 +1191,11 @@ export function renderConsoleHtml(): string {
           flex-direction: column;
         }
 
+        .next-step {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
         .toolbar h2 {
           max-width: 100%;
         }
@@ -1120,6 +1242,10 @@ export function renderConsoleHtml(): string {
 
         .restore-preview-list {
           grid-template-columns: 1fr;
+        }
+
+        .primary-restore-actions {
+          justify-content: flex-start;
         }
       }
 
@@ -1190,6 +1316,7 @@ export function renderConsoleHtml(): string {
         .remove-stack-skill,
         .delete-local-skill,
         .retry-restore,
+        .next-step .button,
         .profile-actions .button,
         .manual-source-form .button,
         .manual-command-form .button {
@@ -1244,16 +1371,21 @@ export function renderConsoleHtml(): string {
           <p id="stack-file-state" class="stack-file-state">Checking backup file...</p>
           <div class="stack-file-actions">
             <button id="create-stack" class="button" type="button">Create backup file</button>
-            <button id="choose-stack-file" class="button secondary" type="button">Choose backup file...</button>
-            <button id="reveal-stack-file" class="button secondary" type="button" disabled>Show file</button>
-            <button id="copy-stack-path" class="button secondary" type="button" disabled>Copy path</button>
-            <button id="manual-stack-path" class="button secondary" type="button">Enter path manually</button>
           </div>
-          <form id="stack-path-form" class="stack-path-form" hidden>
-            <label class="stack-file-label" for="stack-path-input">Backup file path</label>
-            <input id="stack-path-input" class="stack-path-input" type="text" autocomplete="off" placeholder="~/agentdock-stack.json" />
-            <button id="set-stack-path" class="button" type="submit">Use path</button>
-          </form>
+          <details class="stack-file-more">
+            <summary>File options</summary>
+            <div class="stack-file-actions">
+              <button id="choose-stack-file" class="button secondary" type="button">Choose backup file...</button>
+              <button id="reveal-stack-file" class="button secondary" type="button" disabled>Show file</button>
+              <button id="copy-stack-path" class="button secondary" type="button" disabled>Copy path</button>
+              <button id="manual-stack-path" class="button secondary" type="button">Enter path manually</button>
+            </div>
+            <form id="stack-path-form" class="stack-path-form" hidden>
+              <label class="stack-file-label" for="stack-path-input">Backup file path</label>
+              <input id="stack-path-input" class="stack-path-input" type="text" autocomplete="off" placeholder="~/agentdock-stack.json" />
+              <button id="set-stack-path" class="button" type="submit">Use path</button>
+            </form>
+          </details>
         </div>
       </aside>
       <main class="main">
@@ -1276,6 +1408,14 @@ export function renderConsoleHtml(): string {
           <button id="restore-tab" class="view-tab" role="tab" type="button" aria-selected="false" aria-controls="restore-panel" data-view="restore">Restore</button>
         </div>
         <p id="status-line" class="status-line">Scanning local skill directories...</p>
+        <section id="next-step" class="next-step" aria-live="polite" hidden>
+          <div>
+            <p id="next-step-label" class="next-step-label">Next step</p>
+            <h3 id="next-step-title" class="next-step-title">Get started</h3>
+            <p id="next-step-body" class="next-step-body">AgentDock will suggest the safest next action here.</p>
+          </div>
+          <button id="next-step-action" class="button" type="button">Continue</button>
+        </section>
         <section id="installed-panel" class="view-panel" role="tabpanel" aria-labelledby="installed-tab" data-view="installed">
           <div class="installed-local-tools">
             <span class="installed-local-tools-label">Local uninstall</span>
@@ -1284,36 +1424,6 @@ export function renderConsoleHtml(): string {
           <section id="skill-list" aria-live="polite"></section>
         </section>
         <section id="backup-panel" class="view-panel" role="tabpanel" aria-labelledby="backup-tab" data-view="backup" hidden>
-          <section class="manual-source-panel" aria-labelledby="manual-source-heading">
-            <div class="section-head">
-              <div>
-                <p class="kicker">Add by source</p>
-                <h3 id="manual-source-heading">Manual restore source</h3>
-              </div>
-            </div>
-            <form id="manual-source-form" class="manual-source-form">
-              <label class="backup-command-label" for="manual-source-input">
-                Install command or GitHub skill URL
-                <input id="manual-source-input" class="backup-command-input" type="text" autocomplete="off" placeholder="https://github.com/owner/repo/tree/main/skills/skill-name" />
-              </label>
-              <button id="manual-source-save" class="button" type="submit">Add source</button>
-            </form>
-          </section>
-          <section class="update-panel" aria-labelledby="update-heading">
-            <div class="section-head">
-              <div>
-                <p class="kicker">Update Check</p>
-                <h3 id="update-heading">Check saved skill updates</h3>
-              </div>
-              <div class="restore-actions">
-                <span id="update-summary" class="stack-summary">Not checked yet</span>
-                <button id="check-updates" class="button secondary" type="button">Check updates</button>
-              </div>
-            </div>
-            <div id="update-results" class="update-results" aria-live="polite">
-              <div class="stack-empty"><strong>Updates not checked yet</strong><span>Run a check to review saved skills and refresh commands.</span></div>
-            </div>
-          </section>
           <section class="stack-panel" aria-labelledby="backup-heading">
             <div class="section-head">
               <div>
@@ -1324,36 +1434,76 @@ export function renderConsoleHtml(): string {
             </div>
             <div id="backup-list" aria-live="polite"></div>
           </section>
-          <section class="profile-panel" aria-labelledby="profile-heading">
-            <div class="section-head">
-              <div>
-                <p class="kicker">Profile Sync</p>
-                <h3 id="profile-heading">Export and import profiles</h3>
-              </div>
-              <span id="profile-import-summary" class="stack-summary">No profile preview yet</span>
-            </div>
-            <div class="profile-grid">
-              <div class="profile-box">
-                <h4>Export profile</h4>
-                <p class="profile-help">Generate a portable profile from the current Backup.</p>
-                <textarea id="profile-export" class="profile-textarea" readonly spellcheck="false" aria-label="Generated profile JSON"></textarea>
-                <div class="profile-actions">
-                  <button id="export-profile" class="button" type="button">Export profile</button>
-                  <button id="copy-profile" class="button secondary" type="button" disabled>Copy profile</button>
+          <details class="advanced-section" id="backup-tools">
+            <summary>
+              <span>
+                <span class="advanced-title">Backup tools</span>
+                <span class="advanced-note">Add by source, Check updates, and Profile Sync.</span>
+              </span>
+            </summary>
+            <div class="advanced-body">
+              <section class="manual-source-panel" aria-labelledby="manual-source-heading">
+                <div class="section-head">
+                  <div>
+                    <p class="kicker">Add by source</p>
+                    <h3 id="manual-source-heading">Manual restore source</h3>
+                  </div>
                 </div>
-              </div>
-              <div class="profile-box">
-                <h4>Import profile</h4>
-                <p class="profile-help">Paste an AgentDock profile, preview the changes, then apply it to Backup.</p>
-                <textarea id="profile-import-input" class="profile-textarea" spellcheck="false" aria-label="Profile JSON to import"></textarea>
-                <div class="profile-actions">
-                  <button id="preview-profile-import" class="button secondary" type="button">Preview import</button>
-                  <button id="apply-profile-import" class="button" type="button" disabled>Apply import</button>
+                <form id="manual-source-form" class="manual-source-form">
+                  <label class="backup-command-label" for="manual-source-input">
+                    Install command or GitHub skill URL
+                    <input id="manual-source-input" class="backup-command-input" type="text" autocomplete="off" placeholder="https://github.com/owner/repo/tree/main/skills/skill-name" />
+                  </label>
+                  <button id="manual-source-save" class="button" type="submit">Add source</button>
+                </form>
+              </section>
+              <section class="update-panel" aria-labelledby="update-heading">
+                <div class="section-head">
+                  <div>
+                    <p class="kicker">Update Check</p>
+                    <h3 id="update-heading">Check saved skill updates</h3>
+                  </div>
+                  <div class="restore-actions">
+                    <span id="update-summary" class="stack-summary">Not checked yet</span>
+                    <button id="check-updates" class="button secondary" type="button">Check updates</button>
+                  </div>
                 </div>
-                <div id="profile-import-preview" class="profile-preview" aria-live="polite"></div>
-              </div>
+                <div id="update-results" class="update-results" aria-live="polite">
+                  <div class="stack-empty"><strong>Updates not checked yet</strong><span>Run a check to review saved skills and refresh commands.</span></div>
+                </div>
+              </section>
+              <section class="profile-panel" aria-labelledby="profile-heading">
+                <div class="section-head">
+                  <div>
+                    <p class="kicker">Profile Sync</p>
+                    <h3 id="profile-heading">Export and import profiles</h3>
+                  </div>
+                  <span id="profile-import-summary" class="stack-summary">No profile preview yet</span>
+                </div>
+                <div class="profile-grid">
+                  <div class="profile-box">
+                    <h4>Export profile</h4>
+                    <p class="profile-help">Generate a portable profile from the current Backup.</p>
+                    <textarea id="profile-export" class="profile-textarea" readonly spellcheck="false" aria-label="Generated profile JSON"></textarea>
+                    <div class="profile-actions">
+                      <button id="export-profile" class="button" type="button">Export profile</button>
+                      <button id="copy-profile" class="button secondary" type="button" disabled>Copy profile</button>
+                    </div>
+                  </div>
+                  <div class="profile-box">
+                    <h4>Import profile</h4>
+                    <p class="profile-help">Paste an AgentDock profile, preview the changes, then apply it to Backup.</p>
+                    <textarea id="profile-import-input" class="profile-textarea" spellcheck="false" aria-label="Profile JSON to import"></textarea>
+                    <div class="profile-actions">
+                      <button id="preview-profile-import" class="button secondary" type="button">Preview import</button>
+                      <button id="apply-profile-import" class="button" type="button" disabled>Apply import</button>
+                    </div>
+                    <div id="profile-import-preview" class="profile-preview" aria-live="polite"></div>
+                  </div>
+                </div>
+              </section>
             </div>
-          </section>
+          </details>
         </section>
         <section id="restore-panel" class="view-panel" role="tabpanel" aria-labelledby="restore-tab" data-view="restore" hidden>
           <section id="restore-preview" class="restore-preview" aria-labelledby="restore-preview-heading">
@@ -1366,32 +1516,43 @@ export function renderConsoleHtml(): string {
             </div>
             <div class="restore-preview-grid">
               <div id="restore-preview-list" class="restore-preview-list" aria-live="polite"></div>
-              <div class="install-script-box">
-                <textarea id="install-script" class="install-script" readonly spellcheck="false" aria-label="Generated install script"></textarea>
-                <div class="restore-actions">
-                  <button id="start-restore" class="button" type="button" disabled>Start restore</button>
-                  <button id="copy-install-script" class="button secondary" type="button" disabled>Copy install script</button>
-                  <span class="advanced-option">Advanced option</span>
-                </div>
+              <div class="restore-actions primary-restore-actions">
+                <button id="start-restore" class="button" type="button" disabled>Start restore</button>
               </div>
             </div>
             <div id="restore-results" class="restore-results" aria-live="polite"></div>
           </section>
-          <section id="diagnostics-panel" class="diagnostics-panel" aria-labelledby="diagnostics-heading">
-            <div class="section-head">
-              <div>
-                <p class="kicker">Diagnostics</p>
-                <h3 id="diagnostics-heading">Restore health check</h3>
+          <details class="advanced-section" id="restore-tools">
+            <summary>
+              <span>
+                <span class="advanced-title">Advanced option</span>
+                <span class="advanced-note">Copy install script or run Diagnostics.</span>
+              </span>
+            </summary>
+            <div class="advanced-body">
+              <div class="install-script-box">
+                <textarea id="install-script" class="install-script" readonly spellcheck="false" aria-label="Generated install script"></textarea>
+                <div class="restore-actions">
+                  <button id="copy-install-script" class="button secondary" type="button" disabled>Copy install script</button>
+                </div>
               </div>
-              <div class="restore-actions">
-                <span id="diagnostics-summary" class="stack-summary">Not checked yet</span>
-                <button id="run-diagnostics" class="button secondary" type="button">Run diagnostics</button>
-              </div>
+              <section id="diagnostics-panel" class="diagnostics-panel" aria-labelledby="diagnostics-heading">
+                <div class="section-head">
+                  <div>
+                    <p class="kicker">Diagnostics</p>
+                    <h3 id="diagnostics-heading">Restore health check</h3>
+                  </div>
+                  <div class="restore-actions">
+                    <span id="diagnostics-summary" class="stack-summary">Not checked yet</span>
+                    <button id="run-diagnostics" class="button secondary" type="button">Run diagnostics</button>
+                  </div>
+                </div>
+                <div id="diagnostics-list" class="diagnostics-list" aria-live="polite">
+                  <div class="stack-empty"><strong>Diagnostics not run yet</strong><span>Run checks when restore fails or before moving a backup to another machine.</span></div>
+                </div>
+              </section>
             </div>
-            <div id="diagnostics-list" class="diagnostics-list" aria-live="polite">
-              <div class="stack-empty"><strong>Diagnostics not run yet</strong><span>Run checks when restore fails or before moving a backup to another machine.</span></div>
-            </div>
-          </section>
+          </details>
         </section>
       </main>
     </div>
@@ -1471,6 +1632,11 @@ export function renderConsoleHtml(): string {
       const refresh = document.querySelector("#refresh");
       const viewTitle = document.querySelector("#view-title");
       const viewSubtitle = document.querySelector("#view-subtitle");
+      const nextStep = document.querySelector("#next-step");
+      const nextStepLabel = document.querySelector("#next-step-label");
+      const nextStepTitle = document.querySelector("#next-step-title");
+      const nextStepBody = document.querySelector("#next-step-body");
+      const nextStepAction = document.querySelector("#next-step-action");
       const viewTabs = document.querySelectorAll(".view-tab");
       const viewPanels = document.querySelectorAll(".view-panel");
       const skillCount = document.querySelector("#skill-count");
@@ -1550,6 +1716,7 @@ export function renderConsoleHtml(): string {
         renderProfileImportPreview();
         renderRestorePreview(installed);
         renderDiagnostics();
+        renderNextStep(installed);
         activateView(state.activeView);
         statusLine.textContent = getActiveStatusLine(filtered);
 
@@ -1619,6 +1786,7 @@ export function renderConsoleHtml(): string {
           panel.hidden = panel.dataset.view !== nextView;
         });
 
+        renderNextStep(new Set(state.skills.map(installedSkillKey)));
         statusLine.textContent = getActiveStatusLine();
       }
 
@@ -1669,6 +1837,104 @@ export function renderConsoleHtml(): string {
         return query
           ? filtered.length + " of " + state.skills.length + " skills match"
           : state.skills.length + " installed skills found";
+      }
+
+      function renderNextStep(installed) {
+        const stackSkills = state.stack.skills || [];
+        const plan = getRestorePlan(installed);
+        const step = getNextStep(stackSkills, plan);
+
+        if (!step) {
+          nextStep.hidden = true;
+          return;
+        }
+
+        nextStep.hidden = false;
+        nextStepLabel.textContent = step.label;
+        nextStepTitle.textContent = step.title;
+        nextStepBody.textContent = step.body;
+        nextStepAction.textContent = step.actionLabel;
+        nextStepAction.dataset.action = step.action;
+      }
+
+      function getNextStep(stackSkills, plan) {
+        if (!state.stackFile.exists) {
+          return {
+            label: "Next step",
+            title: "Create a backup file",
+            body: "AgentDock needs one portable file before it can save or restore skills.",
+            actionLabel: "Create backup file",
+            action: "create-stack"
+          };
+        }
+
+        if (stackSkills.length === 0) {
+          return {
+            label: "Next step",
+            title: state.skills.length ? "Choose skills to keep" : "Install or scan skills",
+            body: state.skills.length
+              ? "Add the skills you care about from the Installed list; Backup will stay focused on the long-term set."
+              : "No installed skills were found yet. Refresh after installing skills or add a skill root from the CLI.",
+            actionLabel: state.activeView === "installed" ? "Refresh" : "Review installed",
+            action: state.activeView === "installed" ? "refresh" : "installed"
+          };
+        }
+
+        if (plan.installable.length > 0) {
+          return {
+            label: "Ready",
+            title: plan.installable.length + " missing skill" + (plan.installable.length === 1 ? "" : "s") + " can be restored",
+            body: "Review the restore preview, then run the install commands from AgentDock.",
+            actionLabel: state.activeView === "restore" ? "Start restore" : "Review restore",
+            action: state.activeView === "restore" ? "start-restore" : "restore"
+          };
+        }
+
+        if (plan.needsAttention.length > 0) {
+          return {
+            label: "Needs source",
+            title: plan.needsAttention.length + " saved skill" + (plan.needsAttention.length === 1 ? "" : "s") + " need an install command",
+            body: "Add a restore source in Backup so those skills can move to another machine.",
+            actionLabel: "Fix in Backup",
+            action: "backup"
+          };
+        }
+
+        return {
+          label: "All set",
+          title: "Backup matches this machine",
+          body: "Saved skills are installed here. Use Backup tools only when you need updates, profile sync, or manual sources.",
+          actionLabel: state.activeView === "backup" ? "Check updates" : "View Backup",
+          action: state.activeView === "backup" ? "check-updates" : "backup"
+        };
+      }
+
+      function handleNextStepAction(action) {
+        if (action === "create-stack") {
+          createStackFile();
+          return;
+        }
+
+        if (action === "refresh") {
+          loadSkills();
+          return;
+        }
+
+        if (action === "start-restore") {
+          startRestore();
+          return;
+        }
+
+        if (action === "check-updates") {
+          const backupTools = document.querySelector("#backup-tools");
+          if (backupTools) backupTools.open = true;
+          checkUpdates();
+          return;
+        }
+
+        if (["installed", "backup", "restore"].includes(action)) {
+          activateView(action);
+        }
       }
 
       function renderBackupContents(installed, installedById) {
@@ -2680,6 +2946,9 @@ export function renderConsoleHtml(): string {
         search.value = "";
         render();
         search.focus();
+      });
+      nextStepAction.addEventListener("click", () => {
+        handleNextStepAction(nextStepAction.dataset.action);
       });
       viewTabs.forEach((tab) => {
         tab.addEventListener("click", () => activateView(tab.dataset.view));
