@@ -449,7 +449,6 @@ export function renderConsoleHtml(): string {
         margin-top: 5px;
         color: var(--muted);
         line-height: 1.4;
-        white-space: pre-line;
       }
 
       .stack-panel {
@@ -1592,24 +1591,6 @@ export function renderConsoleHtml(): string {
       </form>
     </dialog>
     <script>
-      const ONBOARDING_KEY = "agentdock.onboarding.v1";
-
-      function readOnboardingDismissed() {
-        try {
-          return localStorage.getItem(ONBOARDING_KEY) === "dismissed";
-        } catch (error) {
-          return false;
-        }
-      }
-
-      function persistOnboardingDismissed() {
-        try {
-          localStorage.setItem(ONBOARDING_KEY, "dismissed");
-        } catch (error) {
-          // Ignore: localStorage may be unavailable in private windows or sandboxed contexts.
-        }
-      }
-
       const state = {
         skills: [],
         stack: { skills: [] },
@@ -1621,8 +1602,7 @@ export function renderConsoleHtml(): string {
         pendingBackup: null,
         pendingDelete: null,
         showDeleteControls: false,
-        activeView: "installed",
-        onboardingDismissed: readOnboardingDismissed()
+        activeView: "installed"
       };
       const list = document.querySelector("#skill-list");
       const backupList = document.querySelector("#backup-list");
@@ -1865,19 +1845,6 @@ export function renderConsoleHtml(): string {
       }
 
       function renderNextStep(installed) {
-        if (!state.onboardingDismissed) {
-          nextStep.hidden = false;
-          nextStepLabel.textContent = "Welcome";
-          nextStepTitle.textContent = "How AgentDock works";
-          nextStepBody.textContent =
-            "1. Browse the skills installed on this machine\n" +
-            "2. Save the ones you want to keep in Backup\n" +
-            "3. Restore them on another machine anytime";
-          nextStepAction.textContent = "Got it";
-          nextStepAction.dataset.action = "dismiss-onboarding";
-          return;
-        }
-
         const stackSkills = state.stack.skills || [];
         const plan = getRestorePlan(installed);
         const step = getNextStep(stackSkills, plan);
@@ -1948,13 +1915,6 @@ export function renderConsoleHtml(): string {
       }
 
       function handleNextStepAction(action) {
-        if (action === "dismiss-onboarding") {
-          state.onboardingDismissed = true;
-          persistOnboardingDismissed();
-          render();
-          return;
-        }
-
         if (action === "create-stack") {
           createStackFile();
           return;
